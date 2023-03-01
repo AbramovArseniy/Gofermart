@@ -46,7 +46,19 @@ func NewGophermart(address, accrualSysAddress string, db *sql.DB) *Gophermart {
 					ID: 2,
 				},
 			},
-			//Orders: []storage.Order,
+			Orders: []storage.Order{
+				{
+					UserID:  1,
+					Number:  12345678903,
+					Status:  "PROCESSED",
+					Accrual: 500,
+				},
+				{
+					UserID: 2,
+					Number: 9278923470,
+					Status: "PROCESSING",
+				},
+			},
 		},
 	}
 }
@@ -100,7 +112,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	}*/
 
 	if /*errors.Is(err, sql.ErrNoRows)*/ order == nil {
-		url := fmt.Sprintf("http://%s/api/orders/%d", g.AccrualSysAddress, orderNum)
+		/*url := fmt.Sprintf("http://%s/api/orders/%d", g.AccrualSysAddress, orderNum)
 		resp, err := http.Get(url)
 		if err != nil {
 			http.Error(c.Response().Writer, "cannot get info from accrual system", http.StatusInternalServerError)
@@ -117,18 +129,24 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 			http.Error(c.Response().Writer, fmt.Sprintf("Response failed with status code: %d and\nbody: %s\n", resp.StatusCode, body), http.StatusInternalServerError)
 			return nil
 		}
-		err = json.Unmarshal(body, order)
-		if err != nil {
+		err = json.Unmarshal(body, order)*/
+		order = &storage.Order{
+			Number:  346436439,
+			Status:  "PROCESSED",
+			Accrual: 500,
+		}
+		/*if err != nil {
 			log.Println("failed to unmarshal json from response body from accrual system:", err)
 			http.Error(c.Response().Writer, "failed to unmarshal json from response body from accrual system", http.StatusInternalServerError)
 			return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
 		}
-		/*_, err = g.Database.Exec(`INSERT INTO orders (user_id, number, status, e-ball, uploaded_at) VALUES ($1, $2, $3, $4, $5)`, g.AuthenticatedUser, orderNum, status, accrual, time.Now().Format(time.RFC3339))
+		_, err = g.Database.Exec(`INSERT INTO orders (user_id, number, status, e-ball, uploaded_at) VALUES ($1, $2, $3, $4, $5)`, g.AuthenticatedUser, orderNum, status, accrual, time.Now().Format(time.RFC3339))
 		if err != nil {
 			log.Println("error inserting data to db:", err)
 			http.Error(c.Response().Writer, "cannot insert data to database", http.StatusInternalServerError)
 			return fmt.Errorf("error inserting data to db: %w", err)
 		}*/
+		order.UserID = g.AuthenticatedUser
 		g.Storage.AppendOrder(order)
 		c.Response().Writer.WriteHeader(http.StatusAccepted)
 		return nil
@@ -171,7 +189,7 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 		return err
 	}*/
 	var body []byte
-	body, err := json.Marshal(&orders)
+	body, err := json.MarshalIndent(&orders, "", " ")
 	if err != nil {
 		log.Println("GetOrdersHandler: error while marshalling json:", err)
 		http.Error(c.Response().Writer, "cannot marshal data to json", http.StatusInternalServerError)
