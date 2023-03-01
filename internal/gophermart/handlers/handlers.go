@@ -85,7 +85,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "cannot read rows from database", http.StatusInternalServerError)
 		return fmt.Errorf("error reading rows from db: %w", err)
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		url := fmt.Sprintf("http://%s/api/orders/%d", g.AccrualSysAddress, orderNum)
 		resp, err := http.Get(url)
 		if err != nil {
