@@ -23,18 +23,18 @@ type Order struct {
 }
 
 type Gophermart struct {
-	Address            string
-	Database           *sql.DB
-	AccrualSysAddress  string
-	authenticated_user int
+	Address           string
+	Database          *sql.DB
+	AccrualSysAddress string
+	AuthenticatedUser int
 }
 
 func NewGophermart(address, accrualSysAddress string, db *sql.DB) *Gophermart {
 	return &Gophermart{
-		Address:            address,
-		Database:           db,
-		AccrualSysAddress:  accrualSysAddress,
-		authenticated_user: 1,
+		Address:           address,
+		Database:          db,
+		AccrualSysAddress: accrualSysAddress,
+		AuthenticatedUser: 1,
 	}
 }
 
@@ -110,14 +110,14 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 			http.Error(c.Response().Writer, "failed to unmarshal json from response body from accrual system", http.StatusInternalServerError)
 			return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
 		}
-		_, err = g.Database.Exec(`INSERT INTO orders (user_id, number, status, e-ball, uploaded_at) VALUES ($1, $2, $3, $4, $5)`, g.authenticated_user, orderNum, status, accrual, time.Now().Format(time.RFC3339))
+		_, err = g.Database.Exec(`INSERT INTO orders (user_id, number, status, e-ball, uploaded_at) VALUES ($1, $2, $3, $4, $5)`, g.AuthenticatedUser, orderNum, status, accrual, time.Now().Format(time.RFC3339))
 		if err != nil {
 			log.Println("error inserting data to db:", err)
 			http.Error(c.Response().Writer, "cannot insert data to database", http.StatusInternalServerError)
 			return fmt.Errorf("error inserting data to db: %w", err)
 		}
 	}
-	if userID == g.authenticated_user {
+	if userID == g.AuthenticatedUser {
 		c.Response().Writer.WriteHeader(http.StatusOK)
 		return nil
 	} else {
@@ -127,7 +127,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
-	rows, err := g.Database.Query(`SELECT (number, status, e-ball, uploaded_at) FROM orders WHERE used_id=$1`, g.authenticated_user)
+	rows, err := g.Database.Query(`SELECT (number, status, e-ball, uploaded_at) FROM orders WHERE used_id=$1`, g.AuthenticatedUser)
 	if errors.Is(err, sql.ErrNoRows) {
 		c.Response().Writer.WriteHeader(http.StatusNoContent)
 		return nil

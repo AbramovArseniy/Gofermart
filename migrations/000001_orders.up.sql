@@ -4,5 +4,4 @@ CREATE TABLE metrics (
     status VARCHAR(16)
     e_ball BIGINT,
     date_time TIMESTAMP
-	);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics_id_type ON metrics (id, type);
+);
