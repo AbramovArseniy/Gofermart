@@ -1,22 +1,26 @@
 package database
 
 import (
-	// "context"
+	"context"
 	"database/sql"
-	// "errors"
+	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/AbramovArseniy/Gofermart.git/internal/storage"
+	// "strings"
+	// "log"
+
+	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/services"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type DataBaseStorage struct {
-	DataBase *sql.DB
+type DBStorage struct {
+	db *sql.DB
 }
 
-func NewDataBaseStorage(databasePath string) (storage.Maininterface, error) {
+func NewUserDataBase(databasePath string) (services.UserDB, error) {
 	db, err := sql.Open("pgx", databasePath)
 	if err != nil {
 		return nil, err
@@ -31,21 +35,57 @@ func NewDataBaseStorage(databasePath string) (storage.Maininterface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to CREATE TABLE in DB: %w", err)
 	}
-	return &DataBaseStorage{DataBase: db}, nil
+	return &DBStorage{db: db}, nil
 }
 
-func (d *DataBaseStorage) AddData(login, password string) error {
-	query := `INSERT INTO userdata (login, password) VALUES ($1, $2)`
-	_, err := d.DataBase.Exec(query, login, password)
-	if err != nil && strings.Contains(err.Error(), pgerrcode.UniqueViolation) {
-		return storage.ErrDataExists
+func (d *DBStorage) RegisterNewUser(login string, password string) (services.User, error) {
+	query := `INSERT INTO userdata (login, password) VALUES ($1, $2) returning id`
+	row := d.db.QueryRowContext(context.Background(), query, login, password)
+	var user services.User
+	err := row.Scan(&user.ID)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == pgerrcode.UniqueViolation {
+			return services.User{}, services.ErrUserExists
+		}
 	}
-	return nil
+	return user, nil
 }
 
-func (d *DataBaseStorage) CheckLoginUnicality(login string) (error, bool) {
-	query := `INSERT INTO urls (original_url, short_id, user_id, deleted) VALUES ($1, $2, $3, $4)`
-	_, err := d.DataBase.Exec(query, u.OriginalURL, u.ShortURL, u.UserID, false)
-
-	return nil, true
+func (d *DBStorage) GetUserData(login string) (services.User, error) {
+	var user services.User
+	query := `SELECT id, login, password FROM users WHERE login = $1`
+	row := d.db.QueryRow(query, login)
+	err := row.Scan(&user.ID, &user.Login, &user.HashPassword)
+	if err == pgx.ErrNoRows {
+		return services.User{}, nil
+	}
+	return user, err
 }
+
+// func (d *DBStorage) Registration(userdata services.UserData) (services.User, error) {
+// 	var user services.User
+// 	query := `INSERT INTO userdata (login, password) VALUES ($1, $2) returning id`
+// 	_, err := d.db.Exec(query, userdata.Login, userdata.Password)
+// 	if err != nil && strings.Contains(err.Error(), pgerrcode.UniqueViolation) {
+// 		return user, ErrDataExists
+// 	}
+// 	return user, nil
+// }
+
+// func (d *DBStorage) CheckLoginUnicality(ctx context.Context, login string) (bool, error) {
+// 	query := `SELECT EXISTS (SELECT 1 FROM userdata WHERE login = $1)`
+// 	row := d.db.QueryRowContext(ctx, query, login)
+// 	var check bool
+// 	if err := row.Scan(&check); err != nil {
+// 		if errors.Is(err, sql.ErrNoRows) {
+// 			return false, ErrKeyNotFound
+// 		}
+// 		return true, fmt.Errorf("unable to Scan login from DB (CheckLoginUnicality): %w", err)
+// 	}
+// 	return check, nil
+// }
+
+// func (d DataBaseStorage) Close() {
+// 	d.DataBase.Close()
+// }
