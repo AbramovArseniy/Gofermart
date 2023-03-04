@@ -73,8 +73,8 @@ func main() {
 	if err != nil {
 		log.Println("error seting database:", err)
 	}
+	go g.CheckOrders()
 	r := g.Router()
-
 	log.Println("Server started at", g.Address)
 	err = http.ListenAndServe(g.Address, r)
 	if err != nil {
