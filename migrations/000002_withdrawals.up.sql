@@ -1,6 +1,7 @@
 CREATE TABLE withdrawals (
-    user_id INT PRIMARY KEY,
-	order_num VARCHAR(256),
-    e_ball_sum BIGINT,
-    processed_at TIMESTAMP
+    id serial primary key
+    user_id INT NOT NULL,
+	order_num VARCHAR(255) NOT NULL,
+    accrual BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL
 );
