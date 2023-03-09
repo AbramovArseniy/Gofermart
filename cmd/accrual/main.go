@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -8,13 +9,19 @@ import (
 
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/handlers"
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/utils/config"
+	db "github.com/AbramovArseniy/Gofermart/internal/accrual/utils/database"
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/utils/storage"
 )
 
 func main() {
-	var storageMock *storage.Storage
+	context := context.Background()
 	config := config.New()
-	handler := handlers.New(storageMock)
+	database, err := db.New(context, config.DBAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+	storage := storage.New(database)
+	handler := handlers.New(storage)
 
 	router := chi.NewRouter()
 	router.Mount("/", handler.Route())
