@@ -13,32 +13,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type Order struct {
-	User_id    int       `json:"user_id,omitempty"`
-	Number     int64     `json:"number"`
-	Status     string    `json:"status"`
-	Accrual    int       `json:"accrual,omitempty"`
-	UploadedAt time.Time `json:"uploaded_at"`
-}
-
-type Gophermart struct {
-	Address            string
-	Database           *sql.DB
-	AccrualSysAddress  string
-	AuthenticatedUser  int
-	CheckOrderInterval time.Duration
-}
-
-func NewGophermart(address, accrualSysAddress string, db *sql.DB) *Gophermart {
-	return &Gophermart{
-		Address:            address,
-		Database:           db,
-		AccrualSysAddress:  accrualSysAddress,
-		AuthenticatedUser:  1,
-		CheckOrderInterval: 5 * time.Second,
-	}
-}
-
 func CalculateLuhn(number string) bool {
 	checkNumber := checksum(number)
 	return checkNumber == 0
@@ -59,20 +33,92 @@ func checksum(number string) int {
 	return luhn % 10
 }
 
-func (g *Gophermart) UpgradeOrderStatus(orderNum string) error {
-	url := fmt.Sprintf("http://%s/api/orders/%s", g.AccrualSysAddress, orderNum)
-	resp, err := http.Get(url)
+func (db Database) SaveOrder(authUser User, accrualSysClient Client, order *Order) error {
+	_, err := db.DB.Exec(`INSERT INTO orders (user_id, number, status, accrual, uploaded_at) VALUES ($1, $2, $3, $4)`, authUser.ID, order.Number, "NEW", time.Now().Format(time.RFC3339))
 	if err != nil {
-		return fmt.Errorf("cannot get info from accrual system: %w", err)
+		log.Println("error inserting data to db:", err)
+		return fmt.Errorf("error inserting data to db: %w", err)
+	}
+	err = db.UpgradeOrderStatus(accrualSysClient, order.Number)
+	if err != nil {
+		log.Println("error while upgrading order status:", err)
+		return err
+	}
+	return nil
+}
+
+func (d Database) SaveWithdrawal(withdrawal Withdrawal) error {
+	return nil
+}
+
+func (d Database) GetOrdersByUser(authUser User) ([]Order, bool, error) {
+	orders := []Order{}
+	rows, err := d.DB.Query(`SELECT (number, status, accrual, uploaded_at) FROM orders WHERE used_id=$1`, authUser.ID)
+	if err != nil {
+		return nil, false, fmt.Errorf("error while getting orders by user from database: %w", err)
+	}
+	for rows.Next() {
+		var order Order
+		err = rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt)
+		if err != nil {
+			return nil, false, fmt.Errorf("error while scanning rows from database: %w", err)
+		}
+		orders = append(orders, order)
+	}
+	if rows.Err() != nil {
+		return nil, false, fmt.Errorf("rows.Err() error database: %w", err)
+	}
+	if len(orders) == 0 {
+		return nil, false, nil
+	}
+	return orders, true, nil
+}
+
+func (d Database) GetOrderUserByNum(orderNum string) (int, bool, error) {
+	var userID int
+	err := d.DB.QueryRow(`SELECT ( status, accrual, user_id) FROM orders WHERE number=$1`, orderNum).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("error reading rows from db: %w", err)
+	}
+	return userID, true, nil
+}
+
+func (d Database) GetBalance(authUser User) (float64, float64, error) {
+	return 0, 0, nil
+}
+
+func (d Database) GetUser(login string) (User, bool, error) {
+	return User{}, false, nil
+}
+
+func (d Database) RegisterUser(user User) error {
+	return nil
+}
+
+func (c Client) DoRequest(number string) ([]byte, error) {
+	resp, err := http.Get(c.Url)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get info from accrual system: %w", err)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Println("PostOrderHandler: error while reading response body from accrual system:", err)
-		return fmt.Errorf("PostOrderHandler: error while reading response body from accrual system: %w", err)
+		return nil, fmt.Errorf("PostOrderHandler: error while reading response body from accrual system: %w", err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode > 299 {
-		return nil
+		return nil, fmt.Errorf("accrual system returned status %d, error", resp.StatusCode)
+	}
+	return body, nil
+}
+
+func (db Database) UpgradeOrderStatus(accrualSysClient Client, orderNum string) error {
+	body, err := accrualSysClient.DoRequest(orderNum)
+	if err != nil {
+		return fmt.Errorf("error while getting response body from accrual system: %w", err)
 	}
 	var o Order
 	err = json.Unmarshal(body, &o)
@@ -81,13 +127,13 @@ func (g *Gophermart) UpgradeOrderStatus(orderNum string) error {
 		return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
 	}
 	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
-		_, err = g.Database.Exec(`UPDATE orders SET status=PROCESSING WHERE order_num=$1`, orderNum)
+		_, err = db.DB.Exec(`UPDATE orders SET status=PROCESSING WHERE order_num=$1`, orderNum)
 	} else if o.Status == "INVALID" {
-		_, err = g.Database.Exec(`UPDATE orders SET status=INVALID WHERE order_num=$1`, orderNum)
+		_, err = db.DB.Exec(`UPDATE orders SET status=INVALID WHERE order_num=$1`, orderNum)
 	} else if o.Status == "PROCESSED" {
-		_, err = g.Database.Exec(`UPDATE orders SET status=PROCESSING, accrual=$1 WHERE order_num=$2`, o.Accrual, orderNum)
+		_, err = db.DB.Exec(`UPDATE orders SET status=PROCESSING, accrual=$1 WHERE order_num=$2`, o.Accrual, orderNum)
 	} else {
-		_, err = g.Database.Exec(`UPDATE orders SET status=UNKNOWN WHERE order_num=$1`, orderNum)
+		_, err = db.DB.Exec(`UPDATE orders SET status=UNKNOWN WHERE order_num=$1`, orderNum)
 	}
 	if err != nil {
 		log.Println("error inserting data to db:", err)
@@ -112,29 +158,21 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "wrong format of order number", http.StatusUnprocessableEntity)
 		return nil
 	}
-	var status string
-	var accrual, userID int
-	err = g.Database.QueryRow(`SELECT ( status, accrual, user_id) FROM orders WHERE number=$1`, orderNum).Scan(&status, &accrual, &userID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		log.Println("error reading rows from db:", err)
-		http.Error(c.Response().Writer, "cannot read rows from database", http.StatusInternalServerError)
-		return fmt.Errorf("error reading rows from db: %w", err)
+	var order Order = Order{
+		Number: orderNum,
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		_, err = g.Database.Exec(`INSERT INTO orders (user_id, number, status, accrual, uploaded_at) VALUES ($1, $2, $3, $4)`, g.AuthenticatedUser, orderNum, "NEW", time.Now().Format(time.RFC3339))
-		if err != nil {
-			log.Println("error inserting data to db:", err)
-			http.Error(c.Response().Writer, "cannot intert data into database", http.StatusInternalServerError)
-			return fmt.Errorf("error inserting data to db: %w", err)
-		}
-		err = g.UpgradeOrderStatus(orderNum)
-		if err != nil {
-			log.Println("error while upgrading order status:", err)
-			http.Error(c.Response().Writer, "cannot upgradeorder status ", http.StatusInternalServerError)
-			return err
-		}
+	userID, exists, err := g.Storage.GetOrderUserByNum(orderNum)
+	order.UserID = userID
+	if err != nil {
+		log.Println("PostOrderHandler: error while getting user id by order number:", err)
+		http.Error(c.Response().Writer, "cannot get user id by order number", http.StatusInternalServerError)
+		return fmt.Errorf("PostOrderHandler: error while getting user id by order number: %w", err)
 	}
-	if userID == g.AuthenticatedUser {
+	if !exists {
+
+		g.Storage.SaveOrder(g.AuthenticatedUser, g.AccrualSysClient, &order)
+	}
+	if order.UserID == g.AuthenticatedUser.ID {
 		c.Response().Writer.WriteHeader(http.StatusOK)
 		return nil
 	} else {
@@ -144,31 +182,14 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
-	rows, err := g.Database.Query(`SELECT (number, status, e-ball, uploaded_at) FROM orders WHERE used_id=$1`, g.AuthenticatedUser)
-	if errors.Is(err, sql.ErrNoRows) {
+	orders, exist, err := g.Storage.GetOrdersByUser(g.AuthenticatedUser)
+	if err != nil {
+		log.Println("GetOrdersHandler: error while getting orders by user:", err)
+		return fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
+	}
+	if !exist {
 		c.Response().Writer.WriteHeader(http.StatusNoContent)
 		return nil
-	}
-	if err != nil {
-		log.Println("GetOrdersHandler: error while getting orders from database:", err)
-		http.Error(c.Response().Writer, "cannot read data from database", http.StatusInternalServerError)
-		return err
-	}
-	var orders []Order
-	for rows.Next() {
-		var order Order
-		err = rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt)
-		if err != nil {
-			log.Println("GetOrdersHandler: error while scanning rows from database:", err)
-			http.Error(c.Response().Writer, "cannot read data from database", http.StatusInternalServerError)
-			return err
-		}
-		orders = append(orders, order)
-	}
-	if rows.Err() != nil {
-		log.Println("GetOrdersHandler: rows.Err() error database:", err)
-		http.Error(c.Response().Writer, "cannot read data from database", http.StatusInternalServerError)
-		return err
 	}
 	var body []byte
 	if body, err = json.Marshal(&orders); err != nil {
@@ -187,11 +208,11 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	return nil
 }
 
-func (g *Gophermart) CheckOrders() {
-	ticker := time.NewTicker(g.CheckOrderInterval)
+func (db Database) CheckOrders(accrualSysClient Client) {
+	ticker := time.NewTicker(db.CheckOrderInterval)
 	for {
 		<-ticker.C
-		rows, err := g.Database.Query(`SELECT (order_num) FROM orders WHERE status=NEW OR status=PROCESSING`)
+		rows, err := db.DB.Query(`SELECT (order_num) FROM orders WHERE status=NEW OR status=PROCESSING`)
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
@@ -202,7 +223,7 @@ func (g *Gophermart) CheckOrders() {
 		for rows.Next() {
 			var orderNum string
 			rows.Scan(&orderNum)
-			g.UpgradeOrderStatus(orderNum)
+			db.UpgradeOrderStatus(accrualSysClient, orderNum)
 		}
 		if rows.Err() != nil {
 			log.Println("CheckOrders: error while reading rows")

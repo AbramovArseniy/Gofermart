@@ -2,16 +2,12 @@ package main
 
 import (
 	"database/sql"
-	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/handlers"
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
@@ -41,42 +37,21 @@ func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB) {
 	return
 }
 
-func setDatabase(db *sql.DB) error {
-	driver, err := postgres.WithInstance(db, &postgres.Config{})
-	if err != nil {
-		return fmt.Errorf("could not create driver: %w", err)
-	}
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://./migrations",
-		"postgres", driver)
-	if err != nil {
-		return fmt.Errorf("could not create migration: %w", err)
-	}
-
-	if err != nil {
-		log.Println("error while creating table:", err)
-		return err
-	}
-	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		return err
-	}
-	return nil
-}
-
 func main() {
-	g := handlers.NewGophermart(SetGophermartParams())
-	defer g.Database.Close()
-	if g.Database == nil {
-		panic("no db opened")
+	gophermartAddr, accrualSysAddr, db := SetGophermartParams()
+	g := handlers.NewGophermart(accrualSysAddr, db)
+	defer g.Storage.Finish()
+	if g.Storage == nil {
+		log.Fatal("no db opened")
 	}
-	err := setDatabase(g.Database)
+	err := g.Storage.SetStorage()
 	if err != nil {
 		log.Println("error seting database:", err)
 	}
-	go g.CheckOrders()
+	go g.Storage.CheckOrders(g.AccrualSysClient)
 	r := g.Router()
-	log.Println("Server started at", g.Address)
-	err = http.ListenAndServe(g.Address, r)
+	log.Println("Server started at", gophermartAddr)
+	err = http.ListenAndServe(gophermartAddr, r)
 	if err != nil {
 		log.Fatal("error while starting server: ", err)
 	}
