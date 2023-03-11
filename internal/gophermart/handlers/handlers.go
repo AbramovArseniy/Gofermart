@@ -13,7 +13,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func CalculateLuhn(number string) bool {
+func OrderNumIsRight(number string) bool {
 	checkNumber := checksum(number)
 	return checkNumber == 0
 }
@@ -74,16 +74,19 @@ func (d Database) GetOrdersByUser(authUser User) ([]Order, bool, error) {
 	return orders, true, nil
 }
 
-func (d Database) GetOrderUserByNum(orderNum string) (int, bool, error) {
+func (d Database) GetOrderUserByNum(orderNum string) (int, bool, bool, error) {
+	if !OrderNumIsRight(orderNum) {
+		return 0, false, false, nil
+	}
 	var userID int
 	err := d.SelectOrderByNumStmt.QueryRow(orderNum).Scan(&userID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, nil
+		return 0, false, true, nil
 	}
 	if err != nil {
-		return 0, false, fmt.Errorf("error reading rows from db: %w", err)
+		return 0, false, false, fmt.Errorf("error reading rows from db: %w", err)
 	}
-	return userID, true, nil
+	return userID, true, true, nil
 }
 
 func (d Database) GetBalance(authUser User) (float64, float64, error) {
@@ -154,23 +157,30 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "wrong format of request", http.StatusBadRequest)
 		return fmt.Errorf("PostOrderHandler: error while converting order number to int: %w", err)
 	}
-	if CalculateLuhn(orderNum) {
-		http.Error(c.Response().Writer, "wrong format of order number", http.StatusUnprocessableEntity)
-		return nil
-	}
-	var order Order = Order{
-		Number: orderNum,
-	}
-	userID, exists, err := g.Storage.GetOrderUserByNum(orderNum)
+	order := Order{}
+	userID, exists, numIsRight, err := g.Storage.GetOrderUserByNum(orderNum)
 	order.UserID = userID
 	if err != nil {
 		log.Println("PostOrderHandler: error while getting user id by order number:", err)
 		http.Error(c.Response().Writer, "cannot get user id by order number", http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while getting user id by order number: %w", err)
 	}
+	if !numIsRight {
+		c.Response().Writer.WriteHeader(http.StatusUnprocessableEntity)
+		return nil
+	}
 	if !exists {
-
-		g.Storage.SaveOrder(g.AuthenticatedUser, g.AccrualSysClient, &order)
+		err = g.Storage.SaveOrder(g.AuthenticatedUser, g.AccrualSysClient, &order)
+		if err != nil {
+			log.Println("error while saving order:", err)
+			http.Error(c.Response().Writer, "cannot save order", http.StatusInternalServerError)
+			return fmt.Errorf("error while saving order: %w", err)
+		}
+	}
+	if err != nil {
+		log.Println("PostOrderHandler: error while getting user id by order number:", err)
+		http.Error(c.Response().Writer, "cannot get user id by order number", http.StatusInternalServerError)
+		return fmt.Errorf("PostOrderHandler: error while getting user id by order number: %w", err)
 	}
 	if order.UserID == g.AuthenticatedUser.ID {
 		c.Response().Writer.WriteHeader(http.StatusOK)

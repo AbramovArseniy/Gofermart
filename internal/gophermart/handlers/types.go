@@ -17,7 +17,7 @@ type Storage interface {
 	SaveOrder(authUser User, accrualSysClient Client, order *Order) error
 	SaveWithdrawal(withdrawal Withdrawal) error
 	GetOrdersByUser(authUser User) (orders []Order, exist bool, err error)
-	GetOrderUserByNum(orderNum string) (userID int, exists bool, err error)
+	GetOrderUserByNum(orderNum string) (userID int, exists bool, numIsRight bool, err error)
 	GetBalance(authUser User) (balance float64, withdrawn float64, err error)
 	GetUser(login string) (user User, exists bool, err error)
 	RegisterUser(user User) error
