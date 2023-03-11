@@ -15,13 +15,14 @@ import (
 
 type Storage interface {
 	SaveOrder(authUser User, accrualSysClient Client, order *Order) error
-	SaveWithdrawal(withdrawal Withdrawal) error
+	SaveWithdrawal(withdrawal Withdrawal, auth User) error
 	GetOrdersByUser(authUser User) (orders []Order, exist bool, err error)
 	GetOrderUserByNum(orderNum string) (userID int, exists bool, err error)
 	GetBalance(authUser User) (balance float64, withdrawn float64, err error)
 	GetUser(login string) (user User, exists bool, err error)
 	RegisterUser(user User) error
 	UpgradeOrderStatus(accrualSysClient Client, orderNum string) error
+	GetWithdrawalsByUser(authUser User) (withdrawals []Withdrawal, exists bool, err error)
 	SetStorage() error
 	CheckOrders(accrualSysClient Client)
 	Finish()
@@ -39,8 +40,8 @@ type Database struct {
 	DB                            *sql.DB
 	CheckOrderInterval            time.Duration
 	SelectBalacneAndWithdrawnStmt *sql.Stmt
-	InsertWirdrawal               *sql.Stmt
-	SelectWithdrawalsByUser       *sql.Stmt
+	InsertWirdrawalStmt           *sql.Stmt
+	SelectWithdrawalsByUserStmt   *sql.Stmt
 }
 
 func NewDatabase(db *sql.DB) Database {
@@ -61,8 +62,8 @@ func NewDatabase(db *sql.DB) Database {
 	return Database{
 		DB:                            db,
 		SelectBalacneAndWithdrawnStmt: selectBalacneAndWithdrawnStmt,
-		InsertWirdrawal:               insertWirdrawal,
-		SelectWithdrawalsByUser:       selectWithdrawalsByUser,
+		InsertWirdrawalStmt:           insertWirdrawal,
+		SelectWithdrawalsByUserStmt:   selectWithdrawalsByUser,
 	}
 }
 

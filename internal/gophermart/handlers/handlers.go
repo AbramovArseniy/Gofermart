@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,42 +10,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 )
-
-type Balance struct {
-	Balance   float64 `json:"current"`
-	Withdrawn float64 `json:"withdrawn"`
-}
-
-type Order struct {
-	UserID     int       `json:"user_id,omitempty"`
-	Number     int64     `json:"number"`
-	Status     string    `json:"status"`
-	Accrual    float64   `json:"accrual,omitempty"`
-	UploadedAt time.Time `json:"uploaded_at"`
-}
-
-type Withdrawal struct {
-	UserID      int
-	OrderNum    string    `json:"order"`
-	Accrual     float64   `json:"sum"`
-	ProcessedAt time.Time `json:"processed_at"`
-}
-
-type Gophermart struct {
-	Address           string
-	Database          *sql.DB
-	AccrualSysAddress string
-	AuthenticatedUser int
-}
-
-func NewGophermart(address, accrualSysAddress string, db *sql.DB) *Gophermart {
-	return &Gophermart{
-		Address:           address,
-		Database:          db,
-		AccrualSysAddress: accrualSysAddress,
-		AuthenticatedUser: 1,
-	}
-}
 
 func CalculateLuhn(number string) bool {
 	checkNumber := checksum(number)
@@ -69,15 +31,55 @@ func checksum(number string) int {
 	return luhn % 10
 }
 
-func (g *Gophermart) CountBalance() (float64, float64, error) {
+func (d Database) GetBalance(authUser User) (float64, float64, error) {
 	var balance, withdrawn float64
-	err := g.Database.QueryRow(`SELECT (orders.accrual_sum - withdrawals.withdrawal_sum, withdrawals.withdrawal_sum)
-	 FROM (SELECT SUM(accrual) AS accrual_sum FROM orders WHERE status = PROCESSED AND user_id = $1) orders,
-     (SELECT SUM(accrual) AS withdrawal_sum FROM withdrawals) withdrawals WHERE user_id = $1`, g.AuthenticatedUser).Scan(&balance, &withdrawn)
+	err := d.SelectBalacneAndWithdrawnStmt.QueryRow(authUser).Scan(&balance, &withdrawn)
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
 	}
 	return balance, withdrawn, nil
+}
+
+func (d Database) GetUser(login string) (User, bool, error) {
+	return User{}, false, nil
+}
+
+func (d Database) RegisterUser(user User) error {
+	return nil
+}
+
+func (d Database) SaveWithdrawal(w Withdrawal, authUser User) error {
+	_, err := d.InsertWirdrawalStmt.Exec(authUser, w.OrderNum, w.Accrual, time.Now().Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("PostWithdrawalHandler: error while insert data into database: %w", err)
+	}
+	return nil
+}
+
+func (d Database) GetWithdrawalsByUser(authUser User) ([]Withdrawal, bool, error) {
+	var w []Withdrawal
+	rows, err := d.SelectWithdrawalsByUserStmt.Query(authUser)
+	if err != nil {
+		log.Println("error while selecting withdrawals from database:", err)
+		return nil, false, fmt.Errorf("error while selecting withdrawals from database: %w", err)
+	}
+	for rows.Next() {
+		var withdrawal Withdrawal
+		err = rows.Scan(&withdrawal.OrderNum, &withdrawal.Accrual, &withdrawal.ProcessedAt)
+		if err != nil {
+			log.Println("error while scanning data:", err)
+			return nil, false, fmt.Errorf("error while scanning data: %w", err)
+		}
+		w = append(w, withdrawal)
+	}
+	if rows.Err() != nil {
+		log.Println("rows.Err:", err)
+		return nil, false, fmt.Errorf("rows.Err: %w", err)
+	}
+	if len(w) == 0 {
+		return nil, false, nil
+	}
+	return w, true, nil
 }
 
 func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
@@ -97,7 +99,7 @@ func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "wrong format of order number", http.StatusUnprocessableEntity)
 		return nil
 	}
-	balance, _, err := g.CountBalance()
+	balance, _, err := g.Storage.GetBalance(g.AuthenticatedUser)
 	if err != nil {
 		log.Println("error while counting balance:", err)
 		http.Error(c.Response().Writer, err.Error(), http.StatusInternalServerError)
@@ -107,12 +109,7 @@ func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "not enough accrual on balance", http.StatusPaymentRequired)
 		return nil
 	}
-	_, err = g.Database.Exec("INSERT (user_id, order_num, accrual, created_at) INTO withdrawals VALUES ($1, $2, $3, $4)", g.AuthenticatedUser, w.OrderNum, w.Accrual, time.Now().Format(time.RFC3339))
-	if err != nil {
-		log.Println("PostWithdrawalHandler: error while insert data into database:", err)
-		http.Error(c.Response().Writer, err.Error(), http.StatusInternalServerError)
-		return fmt.Errorf("PostWithdrawalHandler: error while insert data into database: %w", err)
-	}
+	g.Storage.SaveWithdrawal(w, g.AuthenticatedUser)
 	c.Response().Writer.WriteHeader(http.StatusOK)
 	return nil
 }
@@ -120,7 +117,7 @@ func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
 func (g *Gophermart) GetBalanceHandler(c echo.Context) error {
 	var b Balance
 	var err error
-	b.Balance, b.Withdrawn, err = g.CountBalance()
+	b.Balance, b.Withdrawn, err = g.Storage.GetBalance(g.AuthenticatedUser)
 	if err != nil {
 		log.Println("error while counting balance:", err)
 		http.Error(c.Response().Writer, err.Error(), http.StatusInternalServerError)
@@ -144,31 +141,15 @@ func (g *Gophermart) GetBalanceHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
-	var w []Withdrawal
-	rows, err := g.Database.Query(`SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`, g.AuthenticatedUser)
-	if errors.Is(err, sql.ErrNoRows) {
+	w, exist, err := g.Storage.GetWithdrawalsByUser(g.AuthenticatedUser)
+	if err != nil {
+		log.Println("error while getting user's withdrawals:", err)
+		http.Error(c.Response().Writer, "cannot get user's withdrawals", http.StatusInternalServerError)
+		return fmt.Errorf("error while getting user's withdrawals: %w", err)
+	}
+	if !exist {
 		c.Response().Writer.WriteHeader(http.StatusNoContent)
 		return nil
-	}
-	if err != nil {
-		log.Println("error while selecting withdrawals from database:", err)
-		http.Error(c.Response().Writer, "cannot get withdrawals from database", http.StatusInternalServerError)
-		return fmt.Errorf("error while selecting withdrawals from database: %w", err)
-	}
-	for rows.Next() {
-		var withdrawal Withdrawal
-		err = rows.Scan(&withdrawal.OrderNum, &withdrawal.Accrual, &withdrawal.ProcessedAt)
-		if err != nil {
-			log.Println("error while scanning data:", err)
-			http.Error(c.Response().Writer, "cannot scan data", http.StatusInternalServerError)
-			return fmt.Errorf("error while scanning data: %w", err)
-		}
-		w = append(w, withdrawal)
-	}
-	if rows.Err() != nil {
-		log.Println("rows.Err:", err)
-		http.Error(c.Response().Writer, "error with database rows", http.StatusInternalServerError)
-		return fmt.Errorf("rows.Err: %w", err)
 	}
 	response, err := json.Marshal(w)
 	if err != nil {
