@@ -36,12 +36,62 @@ type Withdrawal struct {
 
 type Database struct {
 	Storage
-	DB                 *sql.DB
-	CheckOrderInterval time.Duration
+	DB                                *sql.DB
+	CheckOrderInterval                time.Duration
+	SelectOrdersByUserStmt            *sql.Stmt
+	SelectOrderByNumStmt              *sql.Stmt
+	InsertOrderStmt                   *sql.Stmt
+	UpdateOrderStatusToProcessingStmt *sql.Stmt
+	UpdateOrderStatusToProcessedStmt  *sql.Stmt
+	UpdateOrderStatusToInvalidStmt    *sql.Stmt
+	UpdateOrderStatusToUnknownStmt    *sql.Stmt
+	SelectNotProcessedOrdersStmt      *sql.Stmt
 }
 
-func NewDatabase(DBURI string) {
-
+func NewDatabase(db *sql.DB) Database {
+	selectOrdersByUserStmt, err := db.Prepare(`SELECT (number, status, accrual, uploaded_at) FROM orders WHERE used_id=$1`)
+	if err == nil {
+		log.Println("cannot prepare selectOrdersByUserStmt:", err)
+	}
+	selectOrderByNumStmt, err := db.Prepare(`SELECT ( status, accrual, user_id) FROM orders WHERE number=$1`)
+	if err == nil {
+		log.Println("cannot prepare selectOrderByNumStmt:", err)
+	}
+	insertOrderStmt, err := db.Prepare(`INSERT INTO orders (user_id, number, status, accrual, uploaded_at) VALUES ($1, $2, $3, $4)`)
+	if err == nil {
+		log.Println("cannot prepare InsertOrderStmt:", err)
+	}
+	updateOrderStatusToProcessingStmt, err := db.Prepare(`UPDATE orders SET status=PROCESSING WHERE order_num=$1`)
+	if err == nil {
+		log.Println("cannot prepare UpdateOrderStatusToProcessingStmt:", err)
+	}
+	updateOrderStatusToProcessedStmt, err := db.Prepare(`UPDATE orders SET status=PROCESSED, accrual=$1 WHERE order_num=$2`)
+	if err == nil {
+		log.Println("cannot prepare updateOrderStatusToProcessedStmt:", err)
+	}
+	updateOrderStatusToInvalidStmt, err := db.Prepare(`UPDATE orders SET status=INVALID WHERE order_num=$1`)
+	if err == nil {
+		log.Println("cannot prepare updateOrderStatusToInvalidStmt:", err)
+	}
+	updateOrderStatusToUnknownStmt, err := db.Prepare(`UPDATE orders SET status=UNKNOWN WHERE order_num=$1`)
+	if err == nil {
+		log.Println("cannot prepare updateOrderStatusToUnknownStmt:", err)
+	}
+	selectNotProcessedOrdersStmt, err := db.Prepare(`SELECT (order_num) FROM orders WHERE status=NEW OR status=PROCESSING`)
+	if err == nil {
+		log.Println("cannot prepare selectNotProcessedOrdersStmt:", err)
+	}
+	return Database{
+		DB:                                db,
+		SelectOrdersByUserStmt:            selectOrdersByUserStmt,
+		SelectOrderByNumStmt:              selectOrderByNumStmt,
+		InsertOrderStmt:                   insertOrderStmt,
+		UpdateOrderStatusToProcessingStmt: updateOrderStatusToProcessingStmt,
+		UpdateOrderStatusToProcessedStmt:  updateOrderStatusToProcessedStmt,
+		UpdateOrderStatusToInvalidStmt:    updateOrderStatusToInvalidStmt,
+		UpdateOrderStatusToUnknownStmt:    updateOrderStatusToUnknownStmt,
+		SelectNotProcessedOrdersStmt:      selectNotProcessedOrdersStmt,
+	}
 }
 
 type Client struct {
@@ -72,10 +122,7 @@ type User struct {
 
 func NewGophermart(accrualSysAddress string, db *sql.DB) *Gophermart {
 	return &Gophermart{
-		Storage: Database{
-			DB:                 db,
-			CheckOrderInterval: 5 * time.Second,
-		},
+		Storage: NewDatabase(db),
 		AccrualSysClient: Client{
 			Url:    path.Join(accrualSysAddress, "api/orders"),
 			Client: http.Client{},

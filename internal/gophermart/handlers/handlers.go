@@ -34,7 +34,7 @@ func checksum(number string) int {
 }
 
 func (db Database) SaveOrder(authUser User, accrualSysClient Client, order *Order) error {
-	_, err := db.DB.Exec(`INSERT INTO orders (user_id, number, status, accrual, uploaded_at) VALUES ($1, $2, $3, $4)`, authUser.ID, order.Number, "NEW", time.Now().Format(time.RFC3339))
+	_, err := db.InsertOrderStmt.Exec(authUser.ID, order.Number, "NEW", time.Now().Format(time.RFC3339))
 	if err != nil {
 		log.Println("error inserting data to db:", err)
 		return fmt.Errorf("error inserting data to db: %w", err)
@@ -53,7 +53,7 @@ func (d Database) SaveWithdrawal(withdrawal Withdrawal) error {
 
 func (d Database) GetOrdersByUser(authUser User) ([]Order, bool, error) {
 	orders := []Order{}
-	rows, err := d.DB.Query(`SELECT (number, status, accrual, uploaded_at) FROM orders WHERE used_id=$1`, authUser.ID)
+	rows, err := d.SelectOrdersByUserStmt.Query(authUser.ID)
 	if err != nil {
 		return nil, false, fmt.Errorf("error while getting orders by user from database: %w", err)
 	}
@@ -76,7 +76,7 @@ func (d Database) GetOrdersByUser(authUser User) ([]Order, bool, error) {
 
 func (d Database) GetOrderUserByNum(orderNum string) (int, bool, error) {
 	var userID int
-	err := d.DB.QueryRow(`SELECT ( status, accrual, user_id) FROM orders WHERE number=$1`, orderNum).Scan(&userID)
+	err := d.SelectOrderByNumStmt.QueryRow(orderNum).Scan(&userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, false, nil
 	}
@@ -127,13 +127,13 @@ func (db Database) UpgradeOrderStatus(accrualSysClient Client, orderNum string) 
 		return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
 	}
 	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
-		_, err = db.DB.Exec(`UPDATE orders SET status=PROCESSING WHERE order_num=$1`, orderNum)
+		_, err = db.UpdateOrderStatusToProcessingStmt.Exec(orderNum)
 	} else if o.Status == "INVALID" {
-		_, err = db.DB.Exec(`UPDATE orders SET status=INVALID WHERE order_num=$1`, orderNum)
+		_, err = db.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
 	} else if o.Status == "PROCESSED" {
-		_, err = db.DB.Exec(`UPDATE orders SET status=PROCESSING, accrual=$1 WHERE order_num=$2`, o.Accrual, orderNum)
+		_, err = db.UpdateOrderStatusToInvalidStmt.Exec(o.Accrual, orderNum)
 	} else {
-		_, err = db.DB.Exec(`UPDATE orders SET status=UNKNOWN WHERE order_num=$1`, orderNum)
+		_, err = db.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
 	}
 	if err != nil {
 		log.Println("error inserting data to db:", err)
@@ -212,7 +212,7 @@ func (db Database) CheckOrders(accrualSysClient Client) {
 	ticker := time.NewTicker(db.CheckOrderInterval)
 	for {
 		<-ticker.C
-		rows, err := db.DB.Query(`SELECT (order_num) FROM orders WHERE status=NEW OR status=PROCESSING`)
+		rows, err := db.SelectNotProcessedOrdersStmt.Query()
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
