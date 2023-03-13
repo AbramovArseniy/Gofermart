@@ -15,7 +15,7 @@ type (
 	}
 
 	ordersGoods struct {
-		Description string `json:"descriptioin"`
+		Description string `json:"description"`
 		Price       int64  `json:"price"`
 	}
 )

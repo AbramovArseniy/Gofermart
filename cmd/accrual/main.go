@@ -10,7 +10,6 @@ import (
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/handlers"
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/utils/config"
 	db "github.com/AbramovArseniy/Gofermart/internal/accrual/utils/database"
-	"github.com/AbramovArseniy/Gofermart/internal/accrual/utils/storage"
 )
 
 func main() {
@@ -20,8 +19,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	storage := storage.New(database)
-	handler := handlers.New(storage)
+	database.Migrate()
+
+	handler := handlers.New(database)
 
 	router := chi.NewRouter()
 	router.Mount("/", handler.Route())

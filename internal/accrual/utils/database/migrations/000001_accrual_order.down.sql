@@ -1,1 +1,1 @@
-DROP TABLE (accrual, items);
+DROP TABLE accrual;

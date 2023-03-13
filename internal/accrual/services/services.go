@@ -3,26 +3,34 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
 
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/utils/luhnchecker"
+	"github.com/AbramovArseniy/Gofermart/internal/accrual/utils/storage"
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/utils/types"
 )
 
-func OrdersNumber(number string, GetOrderInfo func(number string) (types.OrdersInfo, error)) ([]byte, error) {
+func OrderCheck(number string) ([]byte, int) {
 	var info types.OrdersInfo
 
 	if luhnchecker.CalculateLuhn(number) {
-		err := fmt.Errorf("wrong format of order number")
 		info.Order = number
 		info.Status = types.StatusInvalid
 		i, error := json.Marshal(info)
 		if error != nil {
-			return nil, error
+			return nil, http.StatusInternalServerError
 		}
-		return i, err
+		return i, http.StatusNoContent
 	}
+	return nil, http.StatusOK
+}
 
-	info, err := GetOrderInfo(number)
+func OrdersNumber(number string, keeper storage.Keeper) ([]byte, error) {
+	var info types.OrdersInfo
+
+	info, err := keeper.GetOrderInfo(number)
 	if err != nil {
 		return nil, err
 	}
@@ -33,4 +41,27 @@ func OrdersNumber(number string, GetOrderInfo func(number string) (types.OrdersI
 	}
 
 	return i, nil
+}
+
+func OrderAdd(list io.ReadCloser, keeper storage.Keeper) error {
+	var order types.CompleteOrder
+	body, err := io.ReadAll(list)
+	if err != nil {
+		return err
+	}
+
+	log.Println(list)
+	log.Println(string(body))
+
+	json.Unmarshal(body, &order)
+
+	log.Printf("order %+v", order)
+
+	if keeper.FindOrder(order.Order) {
+		err := fmt.Errorf("order already exist")
+		return err
+	}
+
+	keeper.RegisterOrder(order)
+	return nil
 }

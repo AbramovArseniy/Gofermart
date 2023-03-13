@@ -15,13 +15,17 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-var orderInfoQuery string = "SELECT * FROM accrual WHERE order_number = $1"
-
 type DataBase struct {
 	db  *sql.DB
 	ctx context.Context
 	dba string
 }
+
+var (
+	orderInfoQuery     string = "SELECT * FROM accrual WHERE order_number = $1"
+	findOrderQuery     string = "SELECT EXIST(SELECT order_number FROM accrual WHERE order_number = $1)"
+	registerOrderQuery string = "INSERT INTO items (order_number, description, price) VALUES ($1, $2, $3)"
+)
 
 func New(ctx context.Context, dba string) (*DataBase, error) {
 	if dba == "" {
@@ -36,7 +40,6 @@ func New(ctx context.Context, dba string) (*DataBase, error) {
 	return &DataBase{
 		db:  db,
 		ctx: ctx,
-		//	cfg: cfg,
 		dba: dba,
 	}, nil
 }
@@ -49,7 +52,7 @@ func (d *DataBase) Migrate() {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://./internal/utils/dbsaver/migrations",
+		"file://internal/accrual/utils/database/migrations",
 		d.dba,
 		driver)
 	if err != nil {
@@ -62,22 +65,6 @@ func (d *DataBase) Migrate() {
 
 }
 
-func (d *DataBase) RegisterNewOrder() error {
-	return nil
-}
-
-func (d *DataBase) DBRegRequst() error {
-	return nil
-}
-
-func (d *DataBase) DBGetOrderAccrual() error {
-	return nil
-}
-
-func (d *DataBase) DBSetNewGoods() error {
-	return nil
-}
-
 func (d *DataBase) GetOrderInfo(number string) (types.OrdersInfo, error) {
 	var order types.OrdersInfo
 	if d.db == nil {
@@ -85,20 +72,67 @@ func (d *DataBase) GetOrderInfo(number string) (types.OrdersInfo, error) {
 		return order, err
 	}
 
-	rows, err := d.db.QueryContext(d.ctx, orderInfoQuery, number)
+	row := d.db.QueryRowContext(d.ctx, orderInfoQuery, number)
+
+	err := row.Scan(&order.Accrual, &order.Order, &order.Status)
 	if err != nil {
 		return order, err
 	}
 
-	err = rows.Scan(&order.Accrual, &order.Order, &order.Status)
-	if err != nil {
-		return order, err
-	}
-
-	err = rows.Err()
+	err = row.Err()
 	if err != nil {
 		return order, err
 	}
 
 	return order, nil
+}
+
+func (d *DataBase) FindOrder(number string) bool {
+	var exist bool
+
+	if d.db == nil {
+		return false
+	}
+
+	row := d.db.QueryRowContext(d.ctx, findOrderQuery, number)
+
+	err := row.Scan(exist)
+	if err != nil {
+		return false
+	}
+
+	return exist
+}
+
+func (d *DataBase) RegisterOrder(order types.CompleteOrder) error {
+
+	if d.db == nil {
+		err := fmt.Errorf("you haven`t opened the database connection")
+		return err
+	}
+
+	tx, err := d.db.BeginTx(d.ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(d.ctx, registerOrderQuery)
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	for _, v := range order.Goods {
+		log.Printf("order desc %s", v.Description)
+		_, err := stmt.ExecContext(d.ctx, order.Order, v.Description, v.Price)
+		if err != nil {
+			log.Printf("during insert was a %s", err)
+			return err
+		}
+	}
+
+	return tx.Commit()
 }

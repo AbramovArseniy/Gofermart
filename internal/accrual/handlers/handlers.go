@@ -11,12 +11,12 @@ import (
 )
 
 type handler struct {
-	storage *storage.Storage
+	Keeper storage.Keeper
 }
 
-func New(storage *storage.Storage) handler {
+func New(keeper storage.Keeper) handler {
 	return handler{
-		storage: storage,
+		Keeper: keeper,
 	}
 }
 
@@ -34,7 +34,13 @@ func (h handler) Route() *echo.Echo {
 }
 
 func (h handler) ordersNumber(c echo.Context) error {
-	orderinfo, err := services.OrdersNumber(c.Param("number"), h.storage.Keeper.GetOrderInfo)
+	_, status := services.OrderCheck(c.Param("number"))
+	if status != http.StatusOK {
+		c.Response().Writer.WriteHeader(status)
+		err := fmt.Errorf("order not registred")
+		return err
+	}
+	orderinfo, err := services.OrdersNumber(c.Param("number"), h.Keeper)
 	if err != nil {
 		return c.String(http.StatusNoContent, fmt.Sprintf("%s", err))
 	}
@@ -44,7 +50,8 @@ func (h handler) ordersNumber(c echo.Context) error {
 }
 
 func (h handler) orders(c echo.Context) error {
-	return c.String(http.StatusOK, "orders ok")
+	i := services.OrderAdd(c.Request().Body, h.Keeper)
+	return i
 }
 
 func (h handler) goods(c echo.Context) error {
