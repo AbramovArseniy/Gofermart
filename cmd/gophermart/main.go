@@ -8,15 +8,18 @@ import (
 	"os"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/handlers"
+	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/database"
+	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/services"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB) {
-	var databaseURI string
-	var flagAddress, flagDatabaseURI, flagAccrualSysAddress string
+func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, auth *services.AuthJWT) {
+	var databaseURI, JWTSecret string
+	var flagAddress, flagDatabaseURI, flagAccrualSysAddress, flagJWTSecret string
 	flag.StringVar(&flagAddress, "-a", "localhost:8080", "server_address")
 	flag.StringVar(&flagDatabaseURI, "-d", "", "database_uri")
 	flag.StringVar(&flagDatabaseURI, "-r", "localhost:8000", "database_uri")
+	flag.StringVar(&flagJWTSecret, "-js", "jwt secret token", "secret token for jwt") // added Albert
 	address, set := os.LookupEnv("RUN_ADDRESS")
 	if !set {
 		address = flagAddress
@@ -24,6 +27,10 @@ func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB) {
 	databaseURI, set = os.LookupEnv("DATABASE_URI")
 	if !set {
 		databaseURI = flagDatabaseURI
+	}
+	JWTSecret, set = os.LookupEnv("JWT_SECRET") // added A
+	if !set {
+		JWTSecret = flagJWTSecret
 	}
 	db, err := sql.Open("pgx", databaseURI)
 	if err != nil {
@@ -34,12 +41,19 @@ func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB) {
 	if !set {
 		accrualSysAddress = flagAccrualSysAddress
 	}
+	// added A
+	userRepo, err := database.NewUserDataBase(databaseURI)
+	if err != nil {
+		log.Println("main: couldn't initialize user storage:", err)
+	}
+	auth = services.NewAuth(userRepo, JWTSecret)
+	// end
 	return
 }
 
 func main() {
-	gophermartAddr, accrualSysAddr, db := SetGophermartParams()
-	g := handlers.NewGophermart(accrualSysAddr, db)
+	gophermartAddr, accrualSysAddr, db, auth := SetGophermartParams()
+	g := handlers.NewGophermart(accrualSysAddr, db, auth)
 	defer g.Storage.Finish()
 	if g.Storage == nil {
 		log.Fatal("no db opened")

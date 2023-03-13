@@ -9,18 +9,19 @@ import (
 	"path"
 	"time"
 
+	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/services"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
 type Storage interface {
-	SaveOrder(authUser User, accrualSysClient Client, order *Order) error
+	SaveOrder(authUser services.User, accrualSysClient Client, order *Order) error
 	SaveWithdrawal(withdrawal Withdrawal) error
-	GetOrdersByUser(authUser User) (orders []Order, exist bool, err error)
+	GetOrdersByUser(authUser services.User) (orders []Order, exist bool, err error)
 	GetOrderUserByNum(orderNum string) (userID int, exists bool, numIsRight bool, err error)
-	GetBalance(authUser User) (balance float64, withdrawn float64, err error)
-	GetUser(login string) (user User, exists bool, err error)
-	RegisterUser(user User) error
+	GetBalance(authUser services.User) (balance float64, withdrawn float64, err error)
+	GetUser(login string) (user services.User, exists bool, err error)
+	RegisterUser(user services.User) error
 	UpgradeOrderStatus(accrualSysClient Client, orderNum string) error
 	SetStorage() error
 	CheckOrders(accrualSysClient Client)
@@ -110,29 +111,32 @@ type Order struct {
 type Gophermart struct {
 	Storage            Storage
 	AccrualSysClient   Client
-	AuthenticatedUser  User
+	AuthenticatedUser  services.User
 	CheckOrderInterval time.Duration
+	Auth               services.Authorization // added A
 }
 
-type User struct {
-	Login        string
-	HashPassword string
-	ID           int
-}
+// уже в пакете services. не перемещать
+// type User struct {
+// 	Login        string
+// 	HashPassword string
+// 	ID           int
+// }
 
-func NewGophermart(accrualSysAddress string, db *sql.DB) *Gophermart {
+func NewGophermart(accrualSysAddress string, db *sql.DB, auth *services.AuthJWT) *Gophermart {
 	return &Gophermart{
 		Storage: NewDatabase(db),
 		AccrualSysClient: Client{
 			Url:    path.Join(accrualSysAddress, "api/orders"),
 			Client: http.Client{},
 		},
-		AuthenticatedUser: User{
+		AuthenticatedUser: services.User{
 			Login:        "",
 			HashPassword: "",
 			ID:           1,
 		},
 		CheckOrderInterval: 5 * time.Second,
+		Auth:               auth, // added A
 	}
 }
 
@@ -156,4 +160,8 @@ func (db Database) SetStorage() error {
 		return err
 	}
 	return nil
+}
+
+func (db Database) Finish() {
+	db.DB.Close()
 }
