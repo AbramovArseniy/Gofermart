@@ -6,9 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	// "strings"
-	// "log"
-
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/services"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
@@ -26,11 +23,11 @@ func NewUserDataBase(databasePath string) (services.UserDB, error) {
 		return nil, err
 	}
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS userdata (
+		CREATE TABLE  users (
 			id SERIAL PRIMARY KEY,
-			login VARCHAR UNIQUE, 
-			password VARCHAR,
-			e_bally VARCHAR)
+			login VARCHAR UNIQUE NOT NULL,
+			password_hash VARCHAR NOT NULL,
+		)
 		`)
 	if err != nil {
 		return nil, fmt.Errorf("unable to CREATE TABLE in DB: %w", err)
@@ -39,7 +36,7 @@ func NewUserDataBase(databasePath string) (services.UserDB, error) {
 }
 
 func (d *DBStorage) RegisterNewUser(login string, password string) (services.User, error) {
-	query := `INSERT INTO userdata (login, password) VALUES ($1, $2) returning id`
+	query := `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	row := d.db.QueryRowContext(context.Background(), query, login, password)
 	var user services.User
 	err := row.Scan(&user.ID)
@@ -54,7 +51,7 @@ func (d *DBStorage) RegisterNewUser(login string, password string) (services.Use
 
 func (d *DBStorage) GetUserData(login string) (services.User, error) {
 	var user services.User
-	query := `SELECT id, login, password FROM users WHERE login = $1`
+	query := `SELECT id, login, password_hash FROM users WHERE login = $1`
 	row := d.db.QueryRow(query, login)
 	err := row.Scan(&user.ID, &user.Login, &user.HashPassword)
 	if err == pgx.ErrNoRows {

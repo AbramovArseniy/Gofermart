@@ -1,7 +1,6 @@
 package services
 
 import (
-	// "context"
 	"errors"
 	"net/http"
 	"time"
@@ -45,13 +44,11 @@ type UserDB interface {
 const UserIDReq = "user_id"
 
 type Authorization interface {
-	// RegisterNewUser(ctx context.Context, userdata UserData) (User, error)
-	// CheckLoginUnicality(ctx context.Context, login string) (bool, error)
-	// Close()
 	RegisterUser(userdata UserData) (User, error)
 	LoginUser(userdata UserData) (User, error)
 	GenerateToken(user User) (string, error)
 	GetUserID(r *http.Request) int
+	AuthMiddleware() func(h http.Handler) http.Handler
 }
 
 type AuthJWT struct {
@@ -127,4 +124,12 @@ func (a *AuthJWT) GetUserID(r *http.Request) int {
 	_, reqs, _ := jwtauth.FromContext(r.Context())
 	userID := reqs[UserIDReq].(float64)
 	return int(userID)
+}
+
+func (a *AuthJWT) AuthMiddleware() func(h http.Handler) http.Handler {
+	verifier := jwtauth.Verifier(a.AuthToken)
+	authenticator := jwtauth.Authenticator
+	return func(h http.Handler) http.Handler {
+		return verifier(authenticator(h))
+	}
 }
