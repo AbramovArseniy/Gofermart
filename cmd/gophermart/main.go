@@ -54,7 +54,7 @@ func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, auth 
 func main() {
 	gophermartAddr, accrualSysAddr, db, auth := SetGophermartParams()
 	g := handlers.NewGophermart(accrualSysAddr, db, auth)
-	defer g.Storage.Finish()
+	defer g.Storage.Close()
 	if g.Storage == nil {
 		log.Fatal("no db opened")
 	}

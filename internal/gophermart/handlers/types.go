@@ -16,23 +16,24 @@ import (
 
 type Storage interface {
 	SaveOrder(authUser services.User, accrualSysClient Client, order *Order) error
-	SaveWithdrawal(withdrawal Withdrawal) error
+	SaveWithdrawal(withdrawal Withdrawal, auth services.User) error
+	GetOrderUserByNum(orderNum string) (userID int, exists bool, numFormatRight bool, err error)
 	GetOrdersByUser(authUser services.User) (orders []Order, exist bool, err error)
-	GetOrderUserByNum(orderNum string) (userID int, exists bool, numIsRight bool, err error)
 	GetBalance(authUser services.User) (balance float64, withdrawn float64, err error)
 	GetUser(login string) (user services.User, exists bool, err error)
 	RegisterUser(user services.User) error
 	UpgradeOrderStatus(accrualSysClient Client, orderNum string) error
+	GetWithdrawalsByUser(authUser services.User) (withdrawals []Withdrawal, exists bool, err error)
 	SetStorage() error
 	CheckOrders(accrualSysClient Client)
-	Finish()
+	Close()
 }
 
 type Withdrawal struct {
 	UserID      int
-	OrderNum    string
-	Accrual     float64
-	ProcessedAt time.Time
+	OrderNum    string    `json:"order"`
+	Accrual     float64   `json:"sum"`
+	ProcessedAt time.Time `json:"processed_at"`
 }
 
 type Database struct {
@@ -47,6 +48,9 @@ type Database struct {
 	UpdateOrderStatusToInvalidStmt    *sql.Stmt
 	UpdateOrderStatusToUnknownStmt    *sql.Stmt
 	SelectNotProcessedOrdersStmt      *sql.Stmt
+	SelectBalacneAndWithdrawnStmt     *sql.Stmt
+	InsertWirdrawalStmt               *sql.Stmt
+	SelectWithdrawalsByUserStmt       *sql.Stmt
 }
 
 func NewDatabase(db *sql.DB) Database {
@@ -82,8 +86,23 @@ func NewDatabase(db *sql.DB) Database {
 	if err == nil {
 		log.Println("cannot prepare selectNotProcessedOrdersStmt:", err)
 	}
+	selectBalacneAndWithdrawnStmt, err := db.Prepare(`SELECT (orders.accrual_sum - withdrawals.withdrawal_sum, withdrawals.withdrawal_sum)
+	FROM (SELECT SUM(accrual) AS accrual_sum FROM orders WHERE status = PROCESSED AND user_id = $1) orders,
+	(SELECT SUM(accrual) AS withdrawal_sum FROM withdrawals) withdrawals WHERE user_id = $1`)
+	if err != nil {
+		log.Println("cannot prepare selectBalacneAndWithdrawnStmt:", err)
+	}
+	insertWirdrawal, err := db.Prepare("INSERT (user_id, order_num, accrual, created_at) INTO withdrawals VALUES ($1, $2, $3, $4)")
+	if err != nil {
+		log.Println("cannot prepare insertWirdrawal:", err)
+	}
+	selectWithdrawalsByUser, err := db.Prepare(`SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`)
+	if err != nil {
+		log.Println("cannot prepare selectWithdrawalsByUser:", err)
+	}
 	return Database{
 		DB:                                db,
+		CheckOrderInterval:                5 * time.Second,
 		SelectOrdersByUserStmt:            selectOrdersByUserStmt,
 		SelectOrderByNumStmt:              selectOrderByNumStmt,
 		InsertOrderStmt:                   insertOrderStmt,
@@ -92,6 +111,9 @@ func NewDatabase(db *sql.DB) Database {
 		UpdateOrderStatusToInvalidStmt:    updateOrderStatusToInvalidStmt,
 		UpdateOrderStatusToUnknownStmt:    updateOrderStatusToUnknownStmt,
 		SelectNotProcessedOrdersStmt:      selectNotProcessedOrdersStmt,
+		SelectBalacneAndWithdrawnStmt:     selectBalacneAndWithdrawnStmt,
+		InsertWirdrawalStmt:               insertWirdrawal,
+		SelectWithdrawalsByUserStmt:       selectWithdrawalsByUser,
 	}
 }
 
@@ -100,6 +122,10 @@ type Client struct {
 	Client http.Client
 }
 
+type Balance struct {
+	Balance   float64 `json:"current"`
+	Withdrawn float64 `json:"withdrawn"`
+}
 type Order struct {
 	UserID     int       `json:"user_id,omitempty"`
 	Number     string    `json:"number"`
@@ -151,12 +177,13 @@ func (db Database) SetStorage() error {
 	if err != nil {
 		return fmt.Errorf("could not create migration: %w", err)
 	}
+
 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return err
 	}
 	return nil
 }
 
-func (db Database) Finish() {
+func (db Database) Close() {
 	db.DB.Close()
 }
