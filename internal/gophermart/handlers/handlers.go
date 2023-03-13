@@ -347,11 +347,11 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 	return nil
 }
 
-func (db Database) CheckOrders(accrualSysClient Client) {
-	ticker := time.NewTicker(db.CheckOrderInterval)
+func (d Database) CheckOrders(accrualSysClient Client) {
+	ticker := time.NewTicker(d.CheckOrderInterval)
 	for {
 		<-ticker.C
-		rows, err := db.SelectNotProcessedOrdersStmt.Query()
+		rows, err := d.SelectNotProcessedOrdersStmt.Query()
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
@@ -362,7 +362,7 @@ func (db Database) CheckOrders(accrualSysClient Client) {
 		for rows.Next() {
 			var orderNum string
 			rows.Scan(&orderNum)
-			db.UpgradeOrderStatus(accrualSysClient, orderNum)
+			d.UpgradeOrderStatus(accrualSysClient, orderNum)
 		}
 		if rows.Err() != nil {
 			log.Println("CheckOrders: error while reading rows")
