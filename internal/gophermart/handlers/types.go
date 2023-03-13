@@ -157,7 +157,3 @@ func (db Database) SetStorage() error {
 	}
 	return nil
 }
-
-func (db Database) Finish() {
-	db.DB.Close()
-}
