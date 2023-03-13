@@ -42,7 +42,7 @@ func checksum(number string) int {
 }
 
 func (c Client) DoRequest(number string) ([]byte, error) {
-	resp, err := http.Get(c.Url)
+	resp, err := http.Get(c.URL)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get info from accrual system: %w", err)
 	}
@@ -92,11 +92,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "cannot read request body", http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while reading request body: %w", err)
 	}
-	orderNum := string(body)
-	if err != nil {
-		http.Error(c.Response().Writer, "wrong format of request", http.StatusBadRequest)
-		return fmt.Errorf("PostOrderHandler: error while converting order number to int: %w", err)
-	}
+	orderNum := fmt.Sprintf("%x", body)
 	order := Order{}
 	userID, exists, numIsRight, err := g.Storage.GetOrderUserByNum(orderNum)
 	order.UserID = userID

@@ -96,7 +96,7 @@ func NewDatabase(db *sql.DB) Database {
 }
 
 type Client struct {
-	Url    string
+	URL    string
 	Client http.Client
 }
 
@@ -127,7 +127,7 @@ func NewGophermart(accrualSysAddress string, db *sql.DB, auth *services.AuthJWT)
 	return &Gophermart{
 		Storage: NewDatabase(db),
 		AccrualSysClient: Client{
-			Url:    path.Join(accrualSysAddress, "api/orders"),
+			URL:    path.Join(accrualSysAddress, "api/orders"),
 			Client: http.Client{},
 		},
 		AuthenticatedUser: services.User{
@@ -150,11 +150,6 @@ func (db Database) SetStorage() error {
 		"postgres", driver)
 	if err != nil {
 		return fmt.Errorf("could not create migration: %w", err)
-	}
-
-	if err != nil {
-		log.Println("error while creating table:", err)
-		return err
 	}
 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return err
