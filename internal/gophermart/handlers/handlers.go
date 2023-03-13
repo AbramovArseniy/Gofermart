@@ -13,6 +13,8 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const userContextKey = "user"
+
 func OrderNumIsRight(number string) bool {
 	checkNumber := checksum(number)
 	return checkNumber == 0
@@ -31,74 +33,6 @@ func checksum(number string) int {
 		luhn = (luhn + cur) % 10
 	}
 	return luhn % 10
-}
-
-func (db Database) SaveOrder(authUser User, accrualSysClient Client, order *Order) error {
-	_, err := db.InsertOrderStmt.Exec(authUser.ID, order.Number, "NEW", time.Now().Format(time.RFC3339))
-	if err != nil {
-		log.Println("error inserting data to db:", err)
-		return fmt.Errorf("error inserting data to db: %w", err)
-	}
-	err = db.UpgradeOrderStatus(accrualSysClient, order.Number)
-	if err != nil {
-		log.Println("error while upgrading order status:", err)
-		return err
-	}
-	return nil
-}
-
-func (d Database) SaveWithdrawal(withdrawal Withdrawal) error {
-	return nil
-}
-
-func (d Database) GetOrdersByUser(authUser User) ([]Order, bool, error) {
-	orders := []Order{}
-	rows, err := d.SelectOrdersByUserStmt.Query(authUser.ID)
-	if err != nil {
-		return nil, false, fmt.Errorf("error while getting orders by user from database: %w", err)
-	}
-	for rows.Next() {
-		var order Order
-		err = rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt)
-		if err != nil {
-			return nil, false, fmt.Errorf("error while scanning rows from database: %w", err)
-		}
-		orders = append(orders, order)
-	}
-	if rows.Err() != nil {
-		return nil, false, fmt.Errorf("rows.Err() error database: %w", err)
-	}
-	if len(orders) == 0 {
-		return nil, false, nil
-	}
-	return orders, true, nil
-}
-
-func (d Database) GetOrderUserByNum(orderNum string) (int, bool, bool, error) {
-	if !OrderNumIsRight(orderNum) {
-		return 0, false, false, nil
-	}
-	var userID int
-	err := d.SelectOrderByNumStmt.QueryRow(orderNum).Scan(&userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, true, nil
-	}
-	if err != nil {
-		return 0, false, false, fmt.Errorf("error reading rows from db: %w", err)
-	}
-	return userID, true, true, nil
-}
-
-func (d Database) GetBalance(authUser User) (float64, float64, error) {
-	return 0, 0, nil
-}
-
-func (d Database) GetUser(login string) (User, bool, error) {
-	return User{}, false, nil
-}
-
-func (d Database) RegisterUser(user User) error {
-	return nil
 }
 
 func (c Client) DoRequest(number string) ([]byte, error) {
@@ -170,19 +104,14 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		return nil
 	}
 	if !exists {
-		err = g.Storage.SaveOrder(g.AuthenticatedUser, g.AccrualSysClient, &order)
+		err = g.Storage.SaveOrder(c.Request().Context().Value(userContextKey).(User), g.AccrualSysClient, &order)
 		if err != nil {
 			log.Println("error while saving order:", err)
 			http.Error(c.Response().Writer, "cannot save order", http.StatusInternalServerError)
 			return fmt.Errorf("error while saving order: %w", err)
 		}
 	}
-	if err != nil {
-		log.Println("PostOrderHandler: error while getting user id by order number:", err)
-		http.Error(c.Response().Writer, "cannot get user id by order number", http.StatusInternalServerError)
-		return fmt.Errorf("PostOrderHandler: error while getting user id by order number: %w", err)
-	}
-	if order.UserID == g.AuthenticatedUser.ID {
+	if order.UserID == c.Request().Context().Value(userContextKey).(User).ID {
 		c.Response().Writer.WriteHeader(http.StatusOK)
 		return nil
 	} else {
@@ -192,7 +121,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
-	orders, exist, err := g.Storage.GetOrdersByUser(g.AuthenticatedUser)
+	orders, exist, err := g.Storage.GetOrdersByUser(c.Request().Context().Value(userContextKey).(User))
 	if err != nil {
 		log.Println("GetOrdersHandler: error while getting orders by user:", err)
 		return fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
