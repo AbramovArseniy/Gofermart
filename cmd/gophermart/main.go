@@ -57,8 +57,12 @@ func main() {
 	}
 	go g.Storage.CheckOrders(g.AccrualSysClient)
 	r := g.Router()
+	s := http.Server{
+		Addr:    gophermartAddr,
+		Handler: r,
+	}
 	log.Println("Server started at", gophermartAddr)
-	err = http.ListenAndServe(gophermartAddr, r)
+	err = s.ListenAndServe()
 	if err != nil {
 		log.Fatal("error while starting server: ", err)
 	}
