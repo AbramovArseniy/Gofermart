@@ -1,4 +1,4 @@
-package services
+package handlers
 
 import (
 	"errors"
@@ -44,32 +44,28 @@ type UserDB interface {
 const UserIDReq = "user_id"
 
 type Authorization interface {
-	RegisterUser(userdata UserData) (User, error)
-	LoginUser(userdata UserData) (User, error)
 	GenerateToken(user User) (string, error)
 	GetUserID(r *http.Request) int
 	AuthMiddleware() func(h http.Handler) http.Handler
 }
 
 type AuthJWT struct {
-	UserStorage UserDB
-	AuthToken   *jwtauth.JWTAuth
+	AuthToken *jwtauth.JWTAuth
 }
 
-func NewAuth(store UserDB, secret string) *AuthJWT {
+func NewAuth(secret string) *AuthJWT {
 	jwtAuth := jwtauth.New("HS256", []byte(secret), nil)
 	return &AuthJWT{
-		UserStorage: store,
-		AuthToken:   jwtAuth,
+		AuthToken: jwtAuth,
 	}
 }
 
-func (a *AuthJWT) RegisterUser(userdata UserData) (User, error) {
+func (g *Gophermart) RegisterUser(userdata UserData) (User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(userdata.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return User{}, ErrNewRegistration
 	}
-	user, err := a.UserStorage.RegisterNewUser(userdata.Login, string(hash))
+	user, err := g.Storage.RegisterNewUser(userdata.Login, string(hash))
 	if errors.Is(err, ErrUserExists) {
 		return User{}, ErrUserExists
 	}
@@ -79,8 +75,8 @@ func (a *AuthJWT) RegisterUser(userdata UserData) (User, error) {
 	return user, nil
 }
 
-func (a *AuthJWT) LoginUser(userdata UserData) (User, error) {
-	user, err := a.UserStorage.GetUserData(userdata.Login)
+func (g *Gophermart) LoginUser(userdata UserData) (User, error) {
+	user, err := g.Storage.GetUserData(userdata.Login)
 	if err != nil {
 		return User{}, err
 	}

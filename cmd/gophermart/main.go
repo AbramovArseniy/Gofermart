@@ -8,13 +8,11 @@ import (
 	"os"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/handlers"
-	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/database"
-	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/services"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, auth *services.AuthJWT) {
-	var databaseURI, JWTSecret string
+func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, JWTSecret string) {
+	var databaseURI string
 	var flagAddress, flagDatabaseURI, flagAccrualSysAddress, flagJWTSecret string
 	flag.StringVar(&flagAddress, "a", "localhost:8080", "server_address")
 	flag.StringVar(&flagDatabaseURI, "d", "", "database_uri")
@@ -41,12 +39,7 @@ func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, auth 
 	if !set {
 		accrualSysAddress = flagAccrualSysAddress
 	}
-	// added A
-	userRepo, err := database.NewUserDataBase(databaseURI)
-	if err != nil {
-		log.Println("main: couldn't initialize user storage:", err)
-	}
-	auth = services.NewAuth(userRepo, JWTSecret)
+
 	// end
 	return
 }

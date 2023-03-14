@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -10,7 +11,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/services"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx"
 	"github.com/labstack/echo/v4"
 )
 
@@ -85,25 +88,17 @@ func (d Database) UpgradeOrderStatus(accrualSysClient Client, orderNum string) e
 	return nil
 }
 
-func (d Database) GetBalance(authUser services.User) (float64, float64, error) {
+func (d Database) GetBalance(authUserID int) (float64, float64, error) {
 	var balance, withdrawn float64
-	err := d.SelectBalacneAndWithdrawnStmt.QueryRow(authUser).Scan(&balance, &withdrawn)
+	err := d.SelectBalacneAndWithdrawnStmt.QueryRow(authUserID).Scan(&balance, &withdrawn)
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
 	}
 	return balance, withdrawn, nil
 }
 
-func (d Database) GetUser(login string) (services.User, bool, error) {
-	return services.User{}, false, nil
-}
-
-func (d Database) RegisterUser(user services.User) error {
-	return nil
-}
-
-func (d Database) SaveWithdrawal(w Withdrawal, authUser services.User) error {
-	_, err := d.InsertWirdrawalStmt.Exec(authUser, w.OrderNum, w.Accrual, time.Now().Format(time.RFC3339))
+func (d Database) SaveWithdrawal(w Withdrawal, authUserID int) error {
+	_, err := d.InsertWirdrawalStmt.Exec(authUserID, w.OrderNum, w.Accrual, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("PostWithdrawalHandler: error while insert data into database: %w", err)
 	}
@@ -131,14 +126,14 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		return nil
 	}
 	if !exists {
-		err = g.Storage.SaveOrder(c.Request().Context().Value(userContextKey).(services.User), g.AccrualSysClient, &order)
+		err = g.Storage.SaveOrder(g.Auth.GetUserID(c.Request()), g.AccrualSysClient, &order)
 		if err != nil {
 			log.Println("error while saving order:", err)
 			http.Error(c.Response().Writer, "cannot save order", http.StatusInternalServerError)
 			return fmt.Errorf("error while saving order: %w", err)
 		}
 	}
-	if order.UserID == c.Request().Context().Value(userContextKey).(services.User).ID {
+	if order.UserID == g.Auth.GetUserID(c.Request()) {
 		c.Response().Writer.WriteHeader(http.StatusOK)
 		return nil
 	} else {
@@ -148,7 +143,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
-	orders, exist, err := g.Storage.GetOrdersByUser(c.Request().Context().Value(userContextKey).(services.User))
+	orders, exist, err := g.Storage.GetOrdersByUser(g.Auth.GetUserID(c.Request()))
 	if err != nil {
 		log.Println("GetOrdersHandler: error while getting orders by user:", err)
 		return fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
@@ -173,9 +168,9 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	return nil
 }
 
-func (d Database) GetWithdrawalsByUser(authUser services.User) ([]Withdrawal, bool, error) {
+func (d Database) GetWithdrawalsByUser(authUserID int) ([]Withdrawal, bool, error) {
 	var w []Withdrawal
-	rows, err := d.SelectWithdrawalsByUserStmt.Query(authUser)
+	rows, err := d.SelectWithdrawalsByUserStmt.Query(authUserID)
 	if err != nil {
 		log.Println("error while selecting withdrawals from database:", err)
 		return nil, false, fmt.Errorf("error while selecting withdrawals from database: %w", err)
@@ -216,7 +211,7 @@ func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "wrong format of order number", http.StatusUnprocessableEntity)
 		return nil
 	}
-	balance, _, err := g.Storage.GetBalance(g.AuthenticatedUser)
+	balance, _, err := g.Storage.GetBalance(g.Auth.GetUserID(c.Request()))
 	if err != nil {
 		log.Println("error while counting balance:", err)
 		http.Error(c.Response().Writer, err.Error(), http.StatusInternalServerError)
@@ -226,13 +221,13 @@ func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "not enough accrual on balance", http.StatusPaymentRequired)
 		return nil
 	}
-	g.Storage.SaveWithdrawal(w, g.AuthenticatedUser)
+	g.Storage.SaveWithdrawal(w, g.Auth.GetUserID(c.Request()))
 	c.Response().Writer.WriteHeader(http.StatusOK)
 	return nil
 }
 
 func (g *Gophermart) RegistHandler(c echo.Context) error {
-	var userData services.UserData
+	var userData UserData
 	if err := json.NewDecoder(c.Request().Body).Decode(&userData); err != nil {
 		http.Error(c.Response().Writer, err.Error(), http.StatusBadRequest)
 		return nil
@@ -241,13 +236,13 @@ func (g *Gophermart) RegistHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, fmt.Sprintf("no data provided: %s", err.Error()), http.StatusBadRequest)
 		return nil
 	}
-	user, err := g.Auth.RegisterUser(userData)
-	if err != nil && !errors.Is(err, services.ErrInvalidData) {
+	user, err := g.RegisterUser(userData)
+	if err != nil && !errors.Is(err, ErrInvalidData) {
 		log.Printf("RegistHandler: error while register handler: %v", err)
 		http.Error(c.Response().Writer, "RegistHandler: can't login", http.StatusInternalServerError)
 		return nil
 	}
-	if errors.Is(err, services.ErrInvalidData) {
+	if errors.Is(err, ErrInvalidData) {
 		http.Error(c.Response().Writer, "RegistHandler: invalid login or password", http.StatusUnauthorized)
 		return nil
 	}
@@ -265,7 +260,7 @@ func (g *Gophermart) RegistHandler(c echo.Context) error {
 func (g *Gophermart) GetBalanceHandler(c echo.Context) error {
 	var b Balance
 	var err error
-	b.Balance, b.Withdrawn, err = g.Storage.GetBalance(g.AuthenticatedUser)
+	b.Balance, b.Withdrawn, err = g.Storage.GetBalance(g.Auth.GetUserID(c.Request()))
 	if err != nil {
 		log.Println("error while counting balance:", err)
 		http.Error(c.Response().Writer, err.Error(), http.StatusInternalServerError)
@@ -289,7 +284,7 @@ func (g *Gophermart) GetBalanceHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) AuthHandler(c echo.Context) error {
-	var userData services.UserData
+	var userData UserData
 	if err := json.NewDecoder(c.Request().Body).Decode(&userData); err != nil {
 		http.Error(c.Response().Writer, err.Error(), http.StatusBadRequest)
 		return nil
@@ -298,13 +293,13 @@ func (g *Gophermart) AuthHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, fmt.Sprintf("no data provided: %s", err.Error()), http.StatusBadRequest)
 		return nil
 	}
-	user, err := g.Auth.LoginUser(userData)
-	if err != nil && !errors.Is(err, services.ErrInvalidData) {
+	user, err := g.LoginUser(userData)
+	if err != nil && !errors.Is(err, ErrInvalidData) {
 		log.Printf("AuthHandler: error while register handler: %v", err)
 		http.Error(c.Response().Writer, "AuthHandler: can't login", http.StatusInternalServerError)
 		return nil
 	}
-	if errors.Is(err, services.ErrInvalidData) {
+	if errors.Is(err, ErrInvalidData) {
 		http.Error(c.Response().Writer, "AuthHandler: invalid login or password", http.StatusUnauthorized)
 		return nil
 	}
@@ -320,7 +315,7 @@ func (g *Gophermart) AuthHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
-	w, exist, err := g.Storage.GetWithdrawalsByUser(g.AuthenticatedUser)
+	w, exist, err := g.Storage.GetWithdrawalsByUser(g.Auth.GetUserID(c.Request()))
 	if err != nil {
 		log.Println("error while getting user's withdrawals:", err)
 		http.Error(c.Response().Writer, "cannot get user's withdrawals", http.StatusInternalServerError)
@@ -369,6 +364,29 @@ func (d Database) CheckOrders(accrualSysClient Client) {
 		}
 	}
 
+}
+
+func (d Database) RegisterNewUser(login string, password string) (User, error) {
+	row := d.InsertUserStmt.QueryRowContext(context.Background(), login, password)
+	var user User
+	err := row.Scan(&user.ID)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == pgerrcode.UniqueViolation {
+			return User{}, ErrUserExists
+		}
+	}
+	return user, nil
+}
+
+func (d Database) GetUserData(login string) (User, error) {
+	var user User
+	row := d.SelectUserStmt.QueryRow(login)
+	err := row.Scan(&user.ID, &user.Login, &user.HashPassword)
+	if err == pgx.ErrNoRows {
+		return User{}, nil
+	}
+	return user, err
 }
 
 func (g *Gophermart) Router() *echo.Echo {

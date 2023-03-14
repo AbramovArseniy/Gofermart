@@ -9,21 +9,20 @@ import (
 	"path"
 	"time"
 
-	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/services"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
 type Storage interface {
-	SaveOrder(authUser services.User, accrualSysClient Client, order *Order) error
-	SaveWithdrawal(withdrawal Withdrawal, auth services.User) error
+	SaveOrder(authUserID int, accrualSysClient Client, order *Order) error
+	SaveWithdrawal(withdrawal Withdrawal, authUserID int) error
 	GetOrderUserByNum(orderNum string) (userID int, exists bool, numFormatRight bool, err error)
-	GetOrdersByUser(authUser services.User) (orders []Order, exist bool, err error)
-	GetBalance(authUser services.User) (balance float64, withdrawn float64, err error)
-	GetUser(login string) (user services.User, exists bool, err error)
-	RegisterUser(user services.User) error
+	GetOrdersByUser(authUserID int) (orders []Order, exist bool, err error)
+	GetBalance(authUserID int) (balance float64, withdrawn float64, err error)
+	GetUserData(login string) (User, error)
+	RegisterNewUser(login string, password string) (User, error)
 	UpgradeOrderStatus(accrualSysClient Client, orderNum string) error
-	GetWithdrawalsByUser(authUser services.User) (withdrawals []Withdrawal, exists bool, err error)
+	GetWithdrawalsByUser(authUserID int) (withdrawals []Withdrawal, exists bool, err error)
 	SetStorage() error
 	CheckOrders(accrualSysClient Client)
 	Close()
@@ -51,6 +50,8 @@ type Database struct {
 	SelectBalacneAndWithdrawnStmt     *sql.Stmt
 	InsertWirdrawalStmt               *sql.Stmt
 	SelectWithdrawalsByUserStmt       *sql.Stmt
+	InsertUserStmt                    *sql.Stmt
+	SelectUserStmt                    *sql.Stmt
 }
 
 func NewDatabase(db *sql.DB) Database {
@@ -137,9 +138,9 @@ type Order struct {
 type Gophermart struct {
 	Storage            Storage
 	AccrualSysClient   Client
-	AuthenticatedUser  services.User
+	AuthenticatedUser  User
 	CheckOrderInterval time.Duration
-	Auth               services.Authorization // added A
+	Auth               Authorization // added A
 }
 
 // уже в пакете services. не перемещать
@@ -149,20 +150,20 @@ type Gophermart struct {
 // 	ID           int
 // }
 
-func NewGophermart(accrualSysAddress string, db *sql.DB, auth *services.AuthJWT) *Gophermart {
+func NewGophermart(accrualSysAddress string, db *sql.DB, auth string) *Gophermart {
 	return &Gophermart{
 		Storage: NewDatabase(db),
 		AccrualSysClient: Client{
 			URL:    path.Join(accrualSysAddress, "api/orders"),
 			Client: http.Client{},
 		},
-		AuthenticatedUser: services.User{
+		AuthenticatedUser: User{
 			Login:        "",
 			HashPassword: "",
 			ID:           1,
 		},
 		CheckOrderInterval: 5 * time.Second,
-		Auth:               auth, // added A
+		Auth:               NewAuth(auth), // added A
 	}
 }
 
