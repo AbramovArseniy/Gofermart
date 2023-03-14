@@ -9,6 +9,7 @@ import (
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/handlers"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, JWTSecret string) {
@@ -18,6 +19,7 @@ func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, JWTSe
 	flag.StringVar(&flagDatabaseURI, "d", "", "database_uri")
 	flag.StringVar(&flagDatabaseURI, "r", "localhost:8000", "database_uri")
 	flag.StringVar(&flagJWTSecret, "js", "jwt secret token", "secret token for jwt") // added Albert
+	flag.Parse()
 	address, set := os.LookupEnv("RUN_ADDRESS")
 	if !set {
 		address = flagAddress
@@ -39,18 +41,17 @@ func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, JWTSe
 	if !set {
 		accrualSysAddress = flagAccrualSysAddress
 	}
-
-	// end
 	return
 }
 
 func main() {
 	gophermartAddr, accrualSysAddr, db, auth := SetGophermartParams()
-	g := handlers.NewGophermart(accrualSysAddr, db, auth)
-	defer g.Storage.Close()
-	if g.Storage == nil {
+	if db == nil {
 		log.Fatal("no db opened")
 	}
+	g := handlers.NewGophermart(accrualSysAddr, db, auth)
+	defer g.Storage.Close()
+
 	err := g.Storage.SetStorage()
 	if err != nil {
 		log.Println("error seting database:", err)
