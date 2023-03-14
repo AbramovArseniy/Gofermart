@@ -16,10 +16,10 @@ import (
 func SetGophermartParams() (address, accrualSysAddress string, db *sql.DB, auth *services.AuthJWT) {
 	var databaseURI, JWTSecret string
 	var flagAddress, flagDatabaseURI, flagAccrualSysAddress, flagJWTSecret string
-	flag.StringVar(&flagAddress, "-a", "localhost:8080", "server_address")
-	flag.StringVar(&flagDatabaseURI, "-d", "", "database_uri")
-	flag.StringVar(&flagDatabaseURI, "-r", "localhost:8000", "database_uri")
-	flag.StringVar(&flagJWTSecret, "-js", "jwt secret token", "secret token for jwt") // added Albert
+	flag.StringVar(&flagAddress, "a", "localhost:8080", "server_address")
+	flag.StringVar(&flagDatabaseURI, "d", "", "database_uri")
+	flag.StringVar(&flagDatabaseURI, "r", "localhost:8000", "database_uri")
+	flag.StringVar(&flagJWTSecret, "js", "jwt secret token", "secret token for jwt") // added Albert
 	address, set := os.LookupEnv("RUN_ADDRESS")
 	if !set {
 		address = flagAddress

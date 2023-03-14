@@ -58,7 +58,7 @@ func (c Client) DoRequest(number string) ([]byte, error) {
 	return body, nil
 }
 
-func (db Database) UpgradeOrderStatus(accrualSysClient Client, orderNum string) error {
+func (d Database) UpgradeOrderStatus(accrualSysClient Client, orderNum string) error {
 	body, err := accrualSysClient.DoRequest(orderNum)
 	if err != nil {
 		return fmt.Errorf("error while getting response body from accrual system: %w", err)
@@ -70,13 +70,13 @@ func (db Database) UpgradeOrderStatus(accrualSysClient Client, orderNum string) 
 		return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
 	}
 	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
-		_, err = db.UpdateOrderStatusToProcessingStmt.Exec(orderNum)
+		_, err = d.UpdateOrderStatusToProcessingStmt.Exec(orderNum)
 	} else if o.Status == "INVALID" {
-		_, err = db.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
+		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
 	} else if o.Status == "PROCESSED" {
-		_, err = db.UpdateOrderStatusToInvalidStmt.Exec(o.Accrual, orderNum)
+		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(o.Accrual, orderNum)
 	} else {
-		_, err = db.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
+		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
 	}
 	if err != nil {
 		log.Println("error inserting data to db:", err)
