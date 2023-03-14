@@ -5,7 +5,7 @@ type status string
 type OrdersInfo struct {
 	Order   string `json:"order"`
 	Status  status `json:"status"`
-	Accrual int64  `json:"accrual"`
+	Accrual int    `json:"accrual,omitempty"`
 }
 
 type (
@@ -16,7 +16,7 @@ type (
 
 	ordersGoods struct {
 		Description string `json:"description"`
-		Price       int64  `json:"price"`
+		Price       int    `json:"price"`
 	}
 )
 

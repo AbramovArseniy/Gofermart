@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/services"
@@ -26,34 +27,51 @@ func (h handler) Route() *echo.Echo {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
-	e.GET("/api/orders/:number", h.ordersNumber)
-	e.POST("/api/orders", h.orders)
-	e.POST("/api/goods", h.goods)
+	e.GET("/api/orders/:number", h.ordersChecker)
+	e.POST("/api/orders", h.ordersRegister)
+	e.POST("/api/goods", h.addNewGoods)
 
 	return e
 }
 
-func (h handler) ordersNumber(c echo.Context) error {
-	_, status := services.OrderCheck(c.Param("number"))
+func (h handler) ordersChecker(c echo.Context) error {
+	orderinfo, status := services.OrderCheck(c.Param("number"))
 	if status != http.StatusOK {
 		c.Response().Writer.WriteHeader(status)
-		err := fmt.Errorf("order not registred")
+		err := fmt.Errorf("httpstatus is not OK")
 		return err
 	}
+	if orderinfo != nil {
+		c.Response().Writer.Write(orderinfo)
+		c.Response().Writer.WriteHeader(status)
+		err := fmt.Errorf("order status invalid")
+		return err
+	}
+
+	if !h.Keeper.FindOrder(c.Param("number")) {
+		c.Response().Writer.WriteHeader(http.StatusNoContent)
+	}
+
 	orderinfo, err := services.OrdersNumber(c.Param("number"), h.Keeper)
 	if err != nil {
-		return c.String(http.StatusNoContent, fmt.Sprintf("%s", err))
+		c.Response().Writer.WriteHeader(http.StatusNoContent)
+		return err
 	}
 	c.Response().Writer.Write(orderinfo)
 	c.Response().Writer.WriteHeader(http.StatusOK)
 	return nil
 }
 
-func (h handler) orders(c echo.Context) error {
-	i := services.OrderAdd(c.Request().Body, h.Keeper)
-	return i
+func (h handler) ordersRegister(c echo.Context) error {
+	httpStatus, err := services.OrderAdd(c.Request().Body, h.Keeper)
+	log.Print(httpStatus)
+	c.Response().Writer.WriteHeader(httpStatus)
+	return err
 }
 
-func (h handler) goods(c echo.Context) error {
-	return c.String(http.StatusOK, "goods ok")
+func (h handler) addNewGoods(c echo.Context) error {
+	httpStatus, err := services.GoodsAdd(c.Request().Body, h.Keeper)
+	log.Print(httpStatus)
+	c.Response().Writer.WriteHeader(httpStatus)
+	return err
 }

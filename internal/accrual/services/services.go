@@ -13,23 +13,21 @@ import (
 )
 
 func OrderCheck(number string) ([]byte, int) {
-	var info types.OrdersInfo
+	var orderInfo types.OrdersInfo
 
-	if luhnchecker.CalculateLuhn(number) {
-		info.Order = number
-		info.Status = types.StatusInvalid
-		i, error := json.Marshal(info)
+	if !luhnchecker.CalculateLuhn(number) {
+		orderInfo.Order = number
+		orderInfo.Status = types.StatusInvalid
+		i, error := json.Marshal(orderInfo)
 		if error != nil {
 			return nil, http.StatusInternalServerError
 		}
-		return i, http.StatusNoContent
+		return i, http.StatusOK
 	}
 	return nil, http.StatusOK
 }
 
 func OrdersNumber(number string, keeper storage.Keeper) ([]byte, error) {
-	var info types.OrdersInfo
-
 	info, err := keeper.GetOrderInfo(number)
 	if err != nil {
 		return nil, err
@@ -43,25 +41,84 @@ func OrdersNumber(number string, keeper storage.Keeper) ([]byte, error) {
 	return i, nil
 }
 
-func OrderAdd(list io.ReadCloser, keeper storage.Keeper) error {
-	var order types.CompleteOrder
+func OrderAdd(list io.ReadCloser, keeper storage.Keeper) (int, error) {
+	var (
+		order     types.CompleteOrder
+		orderInfo types.OrdersInfo
+		accrual   int
+	)
+
 	body, err := io.ReadAll(list)
 	if err != nil {
-		return err
+		return http.StatusBadRequest, err
 	}
 
-	log.Println(list)
-	log.Println(string(body))
-
-	json.Unmarshal(body, &order)
-
-	log.Printf("order %+v", order)
-
-	if keeper.FindOrder(order.Order) {
-		err := fmt.Errorf("order already exist")
-		return err
+	err = json.Unmarshal(body, &order)
+	if err != nil {
+		log.Println("error unm")
+		return http.StatusBadRequest, err
 	}
 
-	keeper.RegisterOrder(order)
-	return nil
+	if keeper.CheckOrderStatus(order.Order) {
+		err := fmt.Errorf("order already processing")
+		return http.StatusConflict, err
+	}
+
+	orderInfo.Order = order.Order
+
+	err = keeper.RegisterOrder(order)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	orderInfo.Status = types.StatusProcessing
+
+	err = keeper.UpdateOrderStatus(orderInfo)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	accrual, err = keeper.FindGoods(order)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	orderInfo.Status = types.StatusProcesed
+	orderInfo.Accrual = accrual
+
+	err = keeper.UpdateOrderStatus(orderInfo)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	return http.StatusAccepted, nil
+}
+
+func GoodsAdd(newGoods io.ReadCloser, keeper storage.Keeper) (int, error) {
+	var (
+		goods types.Goods
+	)
+
+	body, err := io.ReadAll(newGoods)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+
+	err = json.Unmarshal(body, &goods)
+	if err != nil {
+		log.Println("error unm")
+		return http.StatusBadRequest, err
+	}
+
+	if keeper.CheckGoods(goods.Match) {
+		err := fmt.Errorf("goods already registred")
+		return http.StatusConflict, err
+	}
+
+	err = keeper.RegisterGoods(goods)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	return http.StatusOK, nil
 }
