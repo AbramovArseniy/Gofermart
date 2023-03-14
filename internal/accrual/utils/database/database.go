@@ -253,13 +253,13 @@ func (d *DataBase) FindGoods(order types.CompleteOrder) (int, error) {
 		for rows.Next() {
 			var item types.Goods
 
-			err = rows.Scan(&item.Match, &item.Reward, &item.Reward_type)
+			err = rows.Scan(&item.Match, &item.Reward, &item.RewardType)
 			if err != nil {
 				return accrual, err
 			}
 
 			if strings.Contains(v.Description, item.Match) {
-				switch item.Reward_type {
+				switch item.RewardType {
 				case "%":
 					accrual += v.Price / 100 * item.Reward
 				case "pt":
@@ -267,7 +267,9 @@ func (d *DataBase) FindGoods(order types.CompleteOrder) (int, error) {
 				}
 			}
 		}
-
+		if rows.Err() != nil {
+			return accrual, err
+		}
 	}
 
 	return accrual, tx.Commit()
@@ -291,7 +293,7 @@ func (d *DataBase) RegisterGoods(goods types.Goods) error {
 		return err
 	}
 
-	_, err = stmt.ExecContext(d.ctx, goods.Match, goods.Reward, goods.Reward_type)
+	_, err = stmt.ExecContext(d.ctx, goods.Match, goods.Reward, goods.RewardType)
 	if err != nil {
 		err = fmt.Errorf("exec: %s", err)
 		return err
