@@ -183,6 +183,7 @@ func SetStorage(db *sql.DB, address string) error {
 	m, err := migrate.NewWithDatabaseInstance(
 		"file://internal/gophermart/migrations",
 		address, driver)
+	log.Println("migrations opened")
 	if err != nil {
 		return fmt.Errorf("could not create migration: %w", err)
 	}
@@ -190,6 +191,7 @@ func SetStorage(db *sql.DB, address string) error {
 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return err
 	}
+	log.Println("migrations applied")
 	return nil
 }
 
