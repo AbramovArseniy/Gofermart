@@ -1,29 +1,21 @@
 package handlers
 
 import (
-	"database/sql"
-	"errors"
-	"fmt"
-	"log"
 	"net/http"
 	"path"
 	"time"
-
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
 type Storage interface {
-	SaveOrder(authUserID int, accrualSysClient Client, order *Order) error
+	SaveOrder(authUserID int, order *Order) error
 	SaveWithdrawal(withdrawal Withdrawal, authUserID int) error
-	GetOrderUserByNum(orderNum string) (userID int, exists bool, numFormatRight bool, err error)
+	GetOrderUserByNum(orderNum string) (userID int, exists bool, err error)
 	GetOrdersByUser(authUserID int) (orders []Order, exist bool, err error)
 	GetBalance(authUserID int) (balance float64, withdrawn float64, err error)
 	GetUserData(login string) (User, error)
 	RegisterNewUser(login string, password string) (User, error)
 	UpgradeOrderStatus(accrualSysClient Client, orderNum string) error
 	GetWithdrawalsByUser(authUserID int) (withdrawals []Withdrawal, exists bool, err error)
-	SetStorage(string) error
 	CheckOrders(accrualSysClient Client)
 	Close()
 }
@@ -35,96 +27,96 @@ type Withdrawal struct {
 	ProcessedAt time.Time `json:"processed_at"`
 }
 
-type Database struct {
-	Storage
-	DB                                *sql.DB
-	CheckOrderInterval                time.Duration
-	SelectOrdersByUserStmt            *sql.Stmt
-	SelectOrderByNumStmt              *sql.Stmt
-	InsertOrderStmt                   *sql.Stmt
-	UpdateOrderStatusToProcessingStmt *sql.Stmt
-	UpdateOrderStatusToProcessedStmt  *sql.Stmt
-	UpdateOrderStatusToInvalidStmt    *sql.Stmt
-	UpdateOrderStatusToUnknownStmt    *sql.Stmt
-	SelectNotProcessedOrdersStmt      *sql.Stmt
-	SelectBalacneAndWithdrawnStmt     *sql.Stmt
-	InsertWirdrawalStmt               *sql.Stmt
-	SelectWithdrawalsByUserStmt       *sql.Stmt
-	InsertUserStmt                    *sql.Stmt
-	SelectUserStmt                    *sql.Stmt
-}
+// type Database struct {
+// 	Storage
+// 	DB                                *sql.DB
+// 	CheckOrderInterval                time.Duration
+// 	SelectOrdersByUserStmt            *sql.Stmt
+// 	SelectOrderByNumStmt              *sql.Stmt
+// 	InsertOrderStmt                   *sql.Stmt
+// 	UpdateOrderStatusToProcessingStmt *sql.Stmt
+// 	UpdateOrderStatusToProcessedStmt  *sql.Stmt
+// 	UpdateOrderStatusToInvalidStmt    *sql.Stmt
+// 	UpdateOrderStatusToUnknownStmt    *sql.Stmt
+// 	SelectNotProcessedOrdersStmt      *sql.Stmt
+// 	SelectBalacneAndWithdrawnStmt     *sql.Stmt
+// 	InsertWirdrawalStmt               *sql.Stmt
+// 	SelectWithdrawalsByUserStmt       *sql.Stmt
+// 	InsertUserStmt                    *sql.Stmt
+// 	SelectUserStmt                    *sql.Stmt
+// }
 
-func NewDatabase(db *sql.DB) Database {
-	selectOrdersByUserStmt, err := db.Prepare(`SELECT (order_num, status, accrual, date_time) FROM orders WHERE user_id=$1`)
-	if err != nil {
-		log.Println("cannot prepare selectOrdersByUserStmt:", err)
-	}
-	selectOrderByNumStmt, err := db.Prepare(`SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`)
-	if err != nil {
-		log.Println("cannot prepare selectOrderByNumStmt:", err)
-	}
-	insertOrderStmt, err := db.Prepare(`INSERT INTO orders (user_id, order_num, status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`)
-	if err != nil {
-		log.Println("cannot prepare InsertOrderStmt:", err)
-	}
-	updateOrderStatusToProcessingStmt, err := db.Prepare(`UPDATE orders SET status='PROCESSING' WHERE order_num=$1`)
-	if err != nil {
-		log.Println("cannot prepare UpdateOrderStatusToProcessingStmt:", err)
-	}
-	updateOrderStatusToProcessedStmt, err := db.Prepare(`UPDATE orders SET status='PROCESSED', accrual=$1 WHERE order_num=$2`)
-	if err != nil {
-		log.Println("cannot prepare updateOrderStatusToProcessedStmt:", err)
-	}
-	updateOrderStatusToInvalidStmt, err := db.Prepare(`UPDATE orders SET status='INVALID' WHERE order_num=$1`)
-	if err != nil {
-		log.Println("cannot prepare updateOrderStatusToInvalidStmt:", err)
-	}
-	updateOrderStatusToUnknownStmt, err := db.Prepare(`UPDATE orders SET status='UNKNOWN' WHERE order_num=$1`)
-	if err != nil {
-		log.Println("cannot prepare updateOrderStatusToUnknownStmt:", err)
-	}
-	selectNotProcessedOrdersStmt, err := db.Prepare(`SELECT (order_num) FROM orders WHERE status='NEW' OR status='PROCESSING'`)
-	if err != nil {
-		log.Println("cannot prepare selectNotProcessedOrdersStmt:", err)
-	}
-	selectBalacneAndWithdrawnStmt, err := db.Prepare(`SELECT SUM(accrual) AS accrual_sum from orders where status = 'PROCESSED' and user_id = $1 UNION SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1;`)
-	if err != nil {
-		log.Println("cannot prepare selectBalacneAndWithdrawnStmt:", err)
-	}
-	insertWirdrawal, err := db.Prepare("INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)")
-	if err != nil {
-		log.Println("cannot prepare insertWirdrawal:", err)
-	}
-	selectWithdrawalsByUser, err := db.Prepare(`SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`)
-	if err != nil {
-		log.Println("cannot prepare selectWithdrawalsByUser:", err)
-	}
-	InsertUserStmt, err := db.Prepare(`INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`)
-	if err != nil {
-		log.Println("cannot prepare selectWithdrawalsByUser:", err)
-	}
-	SelectUserStmt, err := db.Prepare(`SELECT id, login, password_hash FROM users WHERE login = $1`)
-	if err != nil {
-		log.Println("cannot prepare selectWithdrawalsByUser:", err)
-	}
-	return Database{
-		DB:                                db,
-		CheckOrderInterval:                5 * time.Second,
-		SelectOrdersByUserStmt:            selectOrdersByUserStmt,
-		SelectOrderByNumStmt:              selectOrderByNumStmt,
-		InsertOrderStmt:                   insertOrderStmt,
-		UpdateOrderStatusToProcessingStmt: updateOrderStatusToProcessingStmt,
-		UpdateOrderStatusToProcessedStmt:  updateOrderStatusToProcessedStmt,
-		UpdateOrderStatusToInvalidStmt:    updateOrderStatusToInvalidStmt,
-		UpdateOrderStatusToUnknownStmt:    updateOrderStatusToUnknownStmt,
-		SelectNotProcessedOrdersStmt:      selectNotProcessedOrdersStmt,
-		SelectBalacneAndWithdrawnStmt:     selectBalacneAndWithdrawnStmt,
-		InsertWirdrawalStmt:               insertWirdrawal,
-		SelectWithdrawalsByUserStmt:       selectWithdrawalsByUser,
-		InsertUserStmt:                    InsertUserStmt,
-		SelectUserStmt:                    SelectUserStmt,
-	}
-}
+// func NewDatabase(db *sql.DB) Database {
+// 	selectOrdersByUserStmt, err := db.Prepare(`SELECT (order_num, status, accrual, date_time) FROM orders WHERE user_id=$1`)
+// 	if err != nil {
+// 		log.Println("cannot prepare selectOrdersByUserStmt:", err)
+// 	}
+// 	selectOrderByNumStmt, err := db.Prepare(`SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`)
+// 	if err != nil {
+// 		log.Println("cannot prepare selectOrderByNumStmt:", err)
+// 	}
+// 	insertOrderStmt, err := db.Prepare(`INSERT INTO orders (user_id, order_num, status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`)
+// 	if err != nil {
+// 		log.Println("cannot prepare InsertOrderStmt:", err)
+// 	}
+// 	updateOrderStatusToProcessingStmt, err := db.Prepare(`UPDATE orders SET status='PROCESSING' WHERE order_num=$1`)
+// 	if err != nil {
+// 		log.Println("cannot prepare UpdateOrderStatusToProcessingStmt:", err)
+// 	}
+// 	updateOrderStatusToProcessedStmt, err := db.Prepare(`UPDATE orders SET status='PROCESSED', accrual=$1 WHERE order_num=$2`)
+// 	if err != nil {
+// 		log.Println("cannot prepare updateOrderStatusToProcessedStmt:", err)
+// 	}
+// 	updateOrderStatusToInvalidStmt, err := db.Prepare(`UPDATE orders SET status='INVALID' WHERE order_num=$1`)
+// 	if err != nil {
+// 		log.Println("cannot prepare updateOrderStatusToInvalidStmt:", err)
+// 	}
+// 	updateOrderStatusToUnknownStmt, err := db.Prepare(`UPDATE orders SET status='UNKNOWN' WHERE order_num=$1`)
+// 	if err != nil {
+// 		log.Println("cannot prepare updateOrderStatusToUnknownStmt:", err)
+// 	}
+// 	selectNotProcessedOrdersStmt, err := db.Prepare(`SELECT (order_num) FROM orders WHERE status='NEW' OR status='PROCESSING'`)
+// 	if err != nil {
+// 		log.Println("cannot prepare selectNotProcessedOrdersStmt:", err)
+// 	}
+// 	selectBalacneAndWithdrawnStmt, err := db.Prepare(`SELECT SUM(accrual) AS accrual_sum from orders where status = 'PROCESSED' and user_id = $1 UNION SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1;`)
+// 	if err != nil {
+// 		log.Println("cannot prepare selectBalacneAndWithdrawnStmt:", err)
+// 	}
+// 	insertWirdrawal, err := db.Prepare("INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)")
+// 	if err != nil {
+// 		log.Println("cannot prepare insertWirdrawal:", err)
+// 	}
+// 	selectWithdrawalsByUser, err := db.Prepare(`SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`)
+// 	if err != nil {
+// 		log.Println("cannot prepare selectWithdrawalsByUser:", err)
+// 	}
+// 	InsertUserStmt, err := db.Prepare(`INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`)
+// 	if err != nil {
+// 		log.Println("cannot prepare selectWithdrawalsByUser:", err)
+// 	}
+// 	SelectUserStmt, err := db.Prepare(`SELECT id, login, password_hash FROM users WHERE login = $1`)
+// 	if err != nil {
+// 		log.Println("cannot prepare selectWithdrawalsByUser:", err)
+// 	}
+// 	return Database{
+// 		DB:                                db,
+// 		CheckOrderInterval:                5 * time.Second,
+// 		SelectOrdersByUserStmt:            selectOrdersByUserStmt,
+// 		SelectOrderByNumStmt:              selectOrderByNumStmt,
+// 		InsertOrderStmt:                   insertOrderStmt,
+// 		UpdateOrderStatusToProcessingStmt: updateOrderStatusToProcessingStmt,
+// 		UpdateOrderStatusToProcessedStmt:  updateOrderStatusToProcessedStmt,
+// 		UpdateOrderStatusToInvalidStmt:    updateOrderStatusToInvalidStmt,
+// 		UpdateOrderStatusToUnknownStmt:    updateOrderStatusToUnknownStmt,
+// 		SelectNotProcessedOrdersStmt:      selectNotProcessedOrdersStmt,
+// 		SelectBalacneAndWithdrawnStmt:     selectBalacneAndWithdrawnStmt,
+// 		InsertWirdrawalStmt:               insertWirdrawal,
+// 		SelectWithdrawalsByUserStmt:       selectWithdrawalsByUser,
+// 		InsertUserStmt:                    InsertUserStmt,
+// 		SelectUserStmt:                    SelectUserStmt,
+// 	}
+// }
 
 type Client struct {
 	URL    string
@@ -158,7 +150,7 @@ type Gophermart struct {
 // 	ID           int
 // }
 
-func NewGophermart(accrualSysAddress string, database Database, auth string) *Gophermart {
+func NewGophermart(accrualSysAddress string, database *DataBase, auth string) *Gophermart {
 	return &Gophermart{
 		Storage: database,
 		AccrualSysClient: Client{
@@ -175,26 +167,26 @@ func NewGophermart(accrualSysAddress string, database Database, auth string) *Go
 	}
 }
 
-func (d Database) SetStorage(address string) error {
-	driver, err := postgres.WithInstance(d.DB, &postgres.Config{})
-	if err != nil {
-		return fmt.Errorf("could not create driver: %w", err)
-	}
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://internal/gophermart/migrations",
-		address, driver)
-	log.Println("migrations opened")
-	if err != nil {
-		return fmt.Errorf("could not create migration: %w", err)
-	}
+// func (d Database) SetStorage(address string) error {
+// 	driver, err := postgres.WithInstance(d.DB, &postgres.Config{})
+// 	if err != nil {
+// 		return fmt.Errorf("could not create driver: %w", err)
+// 	}
+// 	m, err := migrate.NewWithDatabaseInstance(
+// 		"file://internal/gophermart/migrations",
+// 		address, driver)
+// 	log.Println("migrations opened")
+// 	if err != nil {
+// 		return fmt.Errorf("could not create migration: %w", err)
+// 	}
 
-	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		return err
-	}
-	log.Printf("migrations %+v", m)
-	return nil
-}
+// 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+// 		return err
+// 	}
+// 	log.Printf("migrations %+v", m)
+// 	return nil
+// }
 
-func (d Database) Close() {
-	d.DB.Close()
-}
+// func (d Database) Close() {
+// 	d.DB.Close()
+// }

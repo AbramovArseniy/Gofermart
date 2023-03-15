@@ -1,7 +1,7 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"log"
 	"net/http"
 
@@ -13,22 +13,15 @@ import (
 
 func main() {
 
+	context := context.Background()
 	cfg := config.New()
-	db, err := sql.Open("pgx", cfg.DBAddress)
+
+	database, err := handlers.NewDataBase(context, cfg.DBAddress)
 	if err != nil {
-		log.Println("error while opening database:", err)
-		db = nil
-	}
-	if db == nil {
-		log.Fatal("no db opened")
+		log.Fatalf("Error during open db %s", err)
 	}
 
-	database := handlers.NewDatabase(db)
-
-	err = database.SetStorage(cfg.DBAddress)
-	if db == nil {
-		log.Fatal("can't set database:", err)
-	}
+	database.Migrate()
 	g := handlers.NewGophermart(cfg.Accrual, database, cfg.JWTSecret)
 	defer g.Storage.Close()
 	r := g.Router()

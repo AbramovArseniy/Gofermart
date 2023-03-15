@@ -1,19 +1,13 @@
 package handlers
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"time"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx"
 	"github.com/labstack/echo/v4"
 )
 
@@ -61,52 +55,52 @@ func (c Client) DoRequest(number string) ([]byte, error) {
 	return body, nil
 }
 
-func (d Database) UpgradeOrderStatus(accrualSysClient Client, orderNum string) error {
-	body, err := accrualSysClient.DoRequest(orderNum)
-	if err != nil {
-		return fmt.Errorf("error while getting response body from accrual system: %w", err)
-	}
-	var o Order
-	err = json.Unmarshal(body, &o)
-	if err != nil {
-		log.Println("failed to unmarshal json from response body from accrual system:", err)
-		return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
-	}
-	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
-		_, err = d.UpdateOrderStatusToProcessingStmt.Exec(orderNum)
-	} else if o.Status == "INVALID" {
-		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
-	} else if o.Status == "PROCESSED" {
-		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(o.Accrual, orderNum)
-	} else {
-		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
-	}
-	if err != nil {
-		log.Println("error inserting data to db:", err)
-		return fmt.Errorf("error inserting data to db: %w", err)
-	}
-	return nil
-}
+// func (d Database) UpgradeOrderStatus(accrualSysClient Client, orderNum string) error {
+// 	body, err := accrualSysClient.DoRequest(orderNum)
+// 	if err != nil {
+// 		return fmt.Errorf("error while getting response body from accrual system: %w", err)
+// 	}
+// 	var o Order
+// 	err = json.Unmarshal(body, &o)
+// 	if err != nil {
+// 		log.Println("failed to unmarshal json from response body from accrual system:", err)
+// 		return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
+// 	}
+// 	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
+// 		_, err = d.UpdateOrderStatusToProcessingStmt.Exec(orderNum)
+// 	} else if o.Status == "INVALID" {
+// 		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
+// 	} else if o.Status == "PROCESSED" {
+// 		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(o.Accrual, orderNum)
+// 	} else {
+// 		_, err = d.UpdateOrderStatusToInvalidStmt.Exec(orderNum)
+// 	}
+// 	if err != nil {
+// 		log.Println("error inserting data to db:", err)
+// 		return fmt.Errorf("error inserting data to db: %w", err)
+// 	}
+// 	return nil
+// }
 
-func (d Database) GetBalance(authUserID int) (float64, float64, error) {
-	var balance, withdrawn float64
-	err := d.SelectBalacneAndWithdrawnStmt.QueryRow(authUserID).Scan(&balance, &withdrawn)
-	if err != nil {
-		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
-	}
+// func (d Database) GetBalance(authUserID int) (float64, float64, error) {
+// 	var balance, withdrawn float64
+// 	err := d.SelectBalacneAndWithdrawnStmt.QueryRow(authUserID).Scan(&balance, &withdrawn)
+// 	if err != nil {
+// 		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
+// 	}
 
-	balance = balance - withdrawn
+// 	balance = balance - withdrawn
 
-	return balance, withdrawn, nil
-}
+// 	return balance, withdrawn, nil
+// }
 
-func (d Database) SaveWithdrawal(w Withdrawal, authUserID int) error {
-	_, err := d.InsertWirdrawalStmt.Exec(authUserID, w.OrderNum, w.Accrual, time.Now().Format(time.RFC3339))
-	if err != nil {
-		return fmt.Errorf("PostWithdrawalHandler: error while insert data into database: %w", err)
-	}
-	return nil
-}
+// func (d Database) SaveWithdrawal(w Withdrawal, authUserID int) error {
+// 	_, err := d.InsertWirdrawalStmt.Exec(authUserID, w.OrderNum, w.Accrual, time.Now().Format(time.RFC3339))
+// 	if err != nil {
+// 		return fmt.Errorf("PostWithdrawalHandler: error while insert data into database: %w", err)
+// 	}
+// 	return nil
+// }
 
 func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
@@ -117,7 +111,8 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	}
 	orderNum := fmt.Sprintf("%x", body)
 	order := Order{}
-	userID, exists, numIsRight, err := g.Storage.GetOrderUserByNum(orderNum)
+	numIsRight := OrderNumIsRight(orderNum)
+	userID, exists, err := g.Storage.GetOrderUserByNum(orderNum)
 	order.UserID = userID
 	if err != nil {
 		log.Println("PostOrderHandler: error while getting user id by order number:", err)
@@ -129,7 +124,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		return nil
 	}
 	if !exists {
-		err = g.Storage.SaveOrder(g.Auth.GetUserID(c.Request()), g.AccrualSysClient, &order)
+		err = g.Storage.SaveOrder(g.Auth.GetUserID(c.Request()), &order)
 		if err != nil {
 			log.Println("error while saving order:", err)
 			http.Error(c.Response().Writer, "cannot save order", http.StatusInternalServerError)
@@ -171,31 +166,31 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	return nil
 }
 
-func (d Database) GetWithdrawalsByUser(authUserID int) ([]Withdrawal, bool, error) {
-	var w []Withdrawal
-	rows, err := d.SelectWithdrawalsByUserStmt.Query(authUserID)
-	if err != nil {
-		log.Println("error while selecting withdrawals from database:", err)
-		return nil, false, fmt.Errorf("error while selecting withdrawals from database: %w", err)
-	}
-	for rows.Next() {
-		var withdrawal Withdrawal
-		err = rows.Scan(&withdrawal.OrderNum, &withdrawal.Accrual, &withdrawal.ProcessedAt)
-		if err != nil {
-			log.Println("error while scanning data:", err)
-			return nil, false, fmt.Errorf("error while scanning data: %w", err)
-		}
-		w = append(w, withdrawal)
-	}
-	if rows.Err() != nil {
-		log.Println("rows.Err:", err)
-		return nil, false, fmt.Errorf("rows.Err: %w", err)
-	}
-	if len(w) == 0 {
-		return nil, false, nil
-	}
-	return w, true, nil
-}
+// func (d Database) GetWithdrawalsByUser(authUserID int) ([]Withdrawal, bool, error) {
+// 	var w []Withdrawal
+// 	rows, err := d.SelectWithdrawalsByUserStmt.Query(authUserID)
+// 	if err != nil {
+// 		log.Println("error while selecting withdrawals from database:", err)
+// 		return nil, false, fmt.Errorf("error while selecting withdrawals from database: %w", err)
+// 	}
+// 	for rows.Next() {
+// 		var withdrawal Withdrawal
+// 		err = rows.Scan(&withdrawal.OrderNum, &withdrawal.Accrual, &withdrawal.ProcessedAt)
+// 		if err != nil {
+// 			log.Println("error while scanning data:", err)
+// 			return nil, false, fmt.Errorf("error while scanning data: %w", err)
+// 		}
+// 		w = append(w, withdrawal)
+// 	}
+// 	if rows.Err() != nil {
+// 		log.Println("rows.Err:", err)
+// 		return nil, false, fmt.Errorf("rows.Err: %w", err)
+// 	}
+// 	if len(w) == 0 {
+// 		return nil, false, nil
+// 	}
+// 	return w, true, nil
+// }
 
 func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
@@ -345,52 +340,52 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 	return nil
 }
 
-func (d Database) CheckOrders(accrualSysClient Client) {
-	ticker := time.NewTicker(d.CheckOrderInterval)
-	for {
-		<-ticker.C
-		rows, err := d.SelectNotProcessedOrdersStmt.Query()
-		if errors.Is(err, sql.ErrNoRows) {
-			return
-		}
-		if err != nil {
-			log.Println("CheckOrders: error while selecting data from Database")
-			return
-		}
-		for rows.Next() {
-			var orderNum string
-			rows.Scan(&orderNum)
-			d.UpgradeOrderStatus(accrualSysClient, orderNum)
-		}
-		if rows.Err() != nil {
-			log.Println("CheckOrders: error while reading rows")
-		}
-	}
+// func (d Database) CheckOrders(accrualSysClient Client) {
+// 	ticker := time.NewTicker(d.CheckOrderInterval)
+// 	for {
+// 		<-ticker.C
+// 		rows, err := d.SelectNotProcessedOrdersStmt.Query()
+// 		if errors.Is(err, sql.ErrNoRows) {
+// 			return
+// 		}
+// 		if err != nil {
+// 			log.Println("CheckOrders: error while selecting data from Database")
+// 			return
+// 		}
+// 		for rows.Next() {
+// 			var orderNum string
+// 			rows.Scan(&orderNum)
+// 			d.UpgradeOrderStatus(accrualSysClient, orderNum)
+// 		}
+// 		if rows.Err() != nil {
+// 			log.Println("CheckOrders: error while reading rows")
+// 		}
+// 	}
 
-}
+// }
 
-func (d Database) RegisterNewUser(login string, password string) (User, error) {
-	row := d.InsertUserStmt.QueryRowContext(context.Background(), login, password)
-	var user User
-	err := row.Scan(&user.ID)
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		if pgErr.Code == pgerrcode.UniqueViolation {
-			return User{}, ErrUserExists
-		}
-	}
-	return user, nil
-}
+// func (d Database) RegisterNewUser(login string, password string) (User, error) {
+// 	row := d.InsertUserStmt.QueryRowContext(context.Background(), login, password)
+// 	var user User
+// 	err := row.Scan(&user.ID)
+// 	var pgErr *pgconn.PgError
+// 	if errors.As(err, &pgErr) {
+// 		if pgErr.Code == pgerrcode.UniqueViolation {
+// 			return User{}, ErrUserExists
+// 		}
+// 	}
+// 	return user, nil
+// }
 
-func (d Database) GetUserData(login string) (User, error) {
-	var user User
-	row := d.SelectUserStmt.QueryRow(login)
-	err := row.Scan(&user.ID, &user.Login, &user.HashPassword)
-	if err == pgx.ErrNoRows {
-		return User{}, nil
-	}
-	return user, err
-}
+// func (d Database) GetUserData(login string) (User, error) {
+// 	var user User
+// 	row := d.SelectUserStmt.QueryRow(login)
+// 	err := row.Scan(&user.ID, &user.Login, &user.HashPassword)
+// 	if err == pgx.ErrNoRows {
+// 		return User{}, nil
+// 	}
+// 	return user, err
+// }
 
 func (g *Gophermart) Router() *echo.Echo {
 	e := echo.New()
