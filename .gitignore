@@ -19,6 +19,8 @@ cmd/accrual/accrual
 
 # Dependency directories (remove the comment below to include it)
 vendor/
+schems/
+*.drawio
 
 # IDEs directories
 .idea
