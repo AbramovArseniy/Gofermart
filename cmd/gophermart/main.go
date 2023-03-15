@@ -55,13 +55,13 @@ func main() {
 	}
 	g := handlers.NewGophermart(accrualSysAddr, db, auth)
 	defer g.Storage.Close()
-	go g.Storage.CheckOrders(g.AccrualSysClient)
 	r := g.Router()
 	s := http.Server{
 		Addr:    gophermartAddr,
 		Handler: r,
 	}
 	log.Println("Server started at", gophermartAddr)
+	go g.Storage.CheckOrders(g.AccrualSysClient)
 	err = s.ListenAndServe()
 	if err != nil {
 		log.Fatal("error while starting server: ", err)

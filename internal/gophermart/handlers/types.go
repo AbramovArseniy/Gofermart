@@ -173,7 +173,7 @@ func SetStorage(db *sql.DB) error {
 		return fmt.Errorf("could not create driver: %w", err)
 	}
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://./internal/gophermart/migrations",
+		"file://internal/gophermart/migrations",
 		"postgres", driver)
 	if err != nil {
 		return fmt.Errorf("could not create migration: %w", err)
