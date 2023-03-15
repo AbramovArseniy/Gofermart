@@ -191,7 +191,7 @@ func SetStorage(db *sql.DB, address string) error {
 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return err
 	}
-	log.Println("migrations applied")
+	log.Printf("migrations %+v", m)
 	return nil
 }
 
