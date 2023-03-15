@@ -93,7 +93,7 @@ func NewDatabase(db *sql.DB) Database {
 	if err != nil {
 		log.Println("cannot prepare selectBalacneAndWithdrawnStmt:", err)
 	}
-	insertWirdrawal, err := db.Prepare("INSERT (user_id, order_num, accrual, created_at) INTO withdrawals VALUES ($1, $2, $3, $4)")
+	insertWirdrawal, err := db.Prepare("INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)")
 	if err != nil {
 		log.Println("cannot prepare insertWirdrawal:", err)
 	}
