@@ -175,14 +175,14 @@ func NewGophermart(accrualSysAddress string, db *sql.DB, auth string) *Gophermar
 	}
 }
 
-func SetStorage(db *sql.DB) error {
+func SetStorage(db *sql.DB, address string) error {
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
 		return fmt.Errorf("could not create driver: %w", err)
 	}
 	m, err := migrate.NewWithDatabaseInstance(
 		"file://internal/gophermart/migrations",
-		"postgresql://leonidagupov@localhost:5432/accrual", driver)
+		address, driver)
 	if err != nil {
 		return fmt.Errorf("could not create migration: %w", err)
 	}

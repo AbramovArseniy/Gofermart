@@ -3,6 +3,7 @@ module github.com/AbramovArseniy/Gofermart
 go 1.18
 
 require (
+	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/go-chi/jwtauth v1.2.0
