@@ -23,7 +23,7 @@ type Storage interface {
 	RegisterNewUser(login string, password string) (User, error)
 	UpgradeOrderStatus(accrualSysClient Client, orderNum string) error
 	GetWithdrawalsByUser(authUserID int) (withdrawals []Withdrawal, exists bool, err error)
-	SetStorage() error
+	SetStorage(string) error
 	CheckOrders(accrualSysClient Client)
 	Close()
 }
@@ -158,9 +158,9 @@ type Gophermart struct {
 // 	ID           int
 // }
 
-func NewGophermart(accrualSysAddress string, db *sql.DB, auth string) *Gophermart {
+func NewGophermart(accrualSysAddress string, database Database, auth string) *Gophermart {
 	return &Gophermart{
-		Storage: NewDatabase(db),
+		Storage: database,
 		AccrualSysClient: Client{
 			URL:    path.Join(accrualSysAddress, "api/orders"),
 			Client: http.Client{},
@@ -175,8 +175,8 @@ func NewGophermart(accrualSysAddress string, db *sql.DB, auth string) *Gophermar
 	}
 }
 
-func SetStorage(db *sql.DB, address string) error {
-	driver, err := postgres.WithInstance(db, &postgres.Config{})
+func (d Database) SetStorage(address string) error {
+	driver, err := postgres.WithInstance(d.DB, &postgres.Config{})
 	if err != nil {
 		return fmt.Errorf("could not create driver: %w", err)
 	}

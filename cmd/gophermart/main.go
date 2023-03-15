@@ -22,11 +22,14 @@ func main() {
 	if db == nil {
 		log.Fatal("no db opened")
 	}
-	err = handlers.SetStorage(db, cfg.DBAddress)
+
+	database := handlers.NewDatabase(db)
+
+	err = database.SetStorage(cfg.DBAddress)
 	if db == nil {
 		log.Fatal("can't set database:", err)
 	}
-	g := handlers.NewGophermart(cfg.Accrual, db, cfg.JWTSecret)
+	g := handlers.NewGophermart(cfg.Accrual, database, cfg.JWTSecret)
 	defer g.Storage.Close()
 	r := g.Router()
 	s := http.Server{
