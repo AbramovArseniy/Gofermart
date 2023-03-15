@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/AbramovArseniy/Gofermart/internal/accrual/services"
@@ -59,19 +58,22 @@ func (h handler) ordersChecker(c echo.Context) error {
 	}
 	c.Response().Writer.Write(orderinfo)
 	c.Response().Writer.WriteHeader(http.StatusOK)
+
 	return nil
 }
 
 func (h handler) ordersRegister(c echo.Context) error {
 	httpStatus, err := services.OrderAdd(c.Request().Body, h.Keeper)
-	log.Print(httpStatus)
+
 	c.Response().Writer.WriteHeader(httpStatus)
+
 	return err
 }
 
 func (h handler) addNewGoods(c echo.Context) error {
 	httpStatus, err := services.GoodsAdd(c.Request().Body, h.Keeper)
-	log.Print(httpStatus)
+
 	c.Response().Writer.WriteHeader(httpStatus)
+
 	return err
 }

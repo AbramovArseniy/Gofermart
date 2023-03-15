@@ -99,6 +99,14 @@ func NewDatabase(db *sql.DB) Database {
 	if err != nil {
 		log.Println("cannot prepare selectWithdrawalsByUser:", err)
 	}
+	InsertUserStmt, err := db.Prepare(`INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`)
+	if err != nil {
+		log.Println("cannot prepare selectWithdrawalsByUser:", err)
+	}
+	SelectUserStmt, err := db.Prepare(`SELECT id, login, password_hash FROM users WHERE login = $1`)
+	if err != nil {
+		log.Println("cannot prepare selectWithdrawalsByUser:", err)
+	}
 	return Database{
 		DB:                                db,
 		CheckOrderInterval:                5 * time.Second,
@@ -113,6 +121,8 @@ func NewDatabase(db *sql.DB) Database {
 		SelectBalacneAndWithdrawnStmt:     selectBalacneAndWithdrawnStmt,
 		InsertWirdrawalStmt:               insertWirdrawal,
 		SelectWithdrawalsByUserStmt:       selectWithdrawalsByUser,
+		InsertUserStmt:                    InsertUserStmt,
+		SelectUserStmt:                    SelectUserStmt,
 	}
 }
 
