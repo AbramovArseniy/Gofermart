@@ -167,8 +167,8 @@ func NewGophermart(accrualSysAddress string, db *sql.DB, auth string) *Gophermar
 	}
 }
 
-func (d Database) SetStorage() error {
-	driver, err := postgres.WithInstance(d.DB, &postgres.Config{})
+func SetStorage(db *sql.DB) error {
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
 		return fmt.Errorf("could not create driver: %w", err)
 	}

@@ -49,13 +49,12 @@ func main() {
 	if db == nil {
 		log.Fatal("no db opened")
 	}
+	err := handlers.SetStorage(db)
+	if db == nil {
+		log.Fatal("can't set database:", err)
+	}
 	g := handlers.NewGophermart(accrualSysAddr, db, auth)
 	defer g.Storage.Close()
-
-	err := g.Storage.SetStorage()
-	if err != nil {
-		log.Println("error seting database:", err)
-	}
 	go g.Storage.CheckOrders(g.AccrualSysClient)
 	r := g.Router()
 	s := http.Server{
