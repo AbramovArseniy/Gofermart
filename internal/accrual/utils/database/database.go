@@ -124,7 +124,7 @@ func (d *DataBase) CheckOrderStatus(number string) bool {
 		return false
 	}
 
-	return status != string(types.StatusInvalid)
+	return status == string(types.StatusProcessing)
 }
 
 func (d *DataBase) RegisterOrder(order types.CompleteOrder) error {
@@ -221,7 +221,10 @@ func (d *DataBase) regOrderInfo(number string) error {
 }
 
 func (d *DataBase) FindGoods(order types.CompleteOrder) (int, error) {
-	var accrual int
+	var (
+		accrual  int
+		faccrual float32
+	)
 
 	if d.db == nil {
 		err := fmt.Errorf("you haven`t opened the database connection")
@@ -261,7 +264,7 @@ func (d *DataBase) FindGoods(order types.CompleteOrder) (int, error) {
 			if strings.Contains(v.Description, item.Match) {
 				switch item.RewardType {
 				case "%":
-					accrual += v.Price / 100 * item.Reward
+					faccrual += v.Price / 100 * float32(item.Reward)
 				case "pt":
 					accrual += item.Reward
 				}
@@ -271,6 +274,8 @@ func (d *DataBase) FindGoods(order types.CompleteOrder) (int, error) {
 			return accrual, err
 		}
 	}
+
+	accrual += int(faccrual)
 
 	return accrual, tx.Commit()
 }
