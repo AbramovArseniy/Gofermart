@@ -1,5 +1,5 @@
 CREATE TABLE withdrawals (
-    id serial primary key
+    id serial primary key,
     user_id INT NOT NULL,
 	order_num VARCHAR(255) NOT NULL,
     accrual BIGINT NOT NULL,

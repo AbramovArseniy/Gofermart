@@ -94,6 +94,9 @@ func (d Database) GetBalance(authUserID int) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
 	}
+
+	balance = balance - withdrawn
+
 	return balance, withdrawn, nil
 }
 

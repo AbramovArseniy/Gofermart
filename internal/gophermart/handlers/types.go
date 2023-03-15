@@ -55,41 +55,39 @@ type Database struct {
 }
 
 func NewDatabase(db *sql.DB) Database {
-	selectOrdersByUserStmt, err := db.Prepare(`SELECT (number, status, accrual, uploaded_at) FROM orders WHERE used_id=$1`)
-	if err == nil {
+	selectOrdersByUserStmt, err := db.Prepare(`SELECT (order_num, status, accrual, date_time) FROM orders WHERE user_id=$1`)
+	if err != nil {
 		log.Println("cannot prepare selectOrdersByUserStmt:", err)
 	}
-	selectOrderByNumStmt, err := db.Prepare(`SELECT ( status, accrual, user_id) FROM orders WHERE number=$1`)
-	if err == nil {
+	selectOrderByNumStmt, err := db.Prepare(`SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`)
+	if err != nil {
 		log.Println("cannot prepare selectOrderByNumStmt:", err)
 	}
-	insertOrderStmt, err := db.Prepare(`INSERT INTO orders (user_id, number, status, accrual, uploaded_at) VALUES ($1, $2, $3, $4)`)
-	if err == nil {
+	insertOrderStmt, err := db.Prepare(`INSERT INTO orders (user_id, order_num, status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`)
+	if err != nil {
 		log.Println("cannot prepare InsertOrderStmt:", err)
 	}
-	updateOrderStatusToProcessingStmt, err := db.Prepare(`UPDATE orders SET status=PROCESSING WHERE order_num=$1`)
-	if err == nil {
+	updateOrderStatusToProcessingStmt, err := db.Prepare(`UPDATE orders SET status='PROCESSING' WHERE order_num=$1`)
+	if err != nil {
 		log.Println("cannot prepare UpdateOrderStatusToProcessingStmt:", err)
 	}
-	updateOrderStatusToProcessedStmt, err := db.Prepare(`UPDATE orders SET status=PROCESSED, accrual=$1 WHERE order_num=$2`)
-	if err == nil {
+	updateOrderStatusToProcessedStmt, err := db.Prepare(`UPDATE orders SET status='PROCESSED', accrual=$1 WHERE order_num=$2`)
+	if err != nil {
 		log.Println("cannot prepare updateOrderStatusToProcessedStmt:", err)
 	}
-	updateOrderStatusToInvalidStmt, err := db.Prepare(`UPDATE orders SET status=INVALID WHERE order_num=$1`)
-	if err == nil {
+	updateOrderStatusToInvalidStmt, err := db.Prepare(`UPDATE orders SET status='INVALID' WHERE order_num=$1`)
+	if err != nil {
 		log.Println("cannot prepare updateOrderStatusToInvalidStmt:", err)
 	}
-	updateOrderStatusToUnknownStmt, err := db.Prepare(`UPDATE orders SET status=UNKNOWN WHERE order_num=$1`)
-	if err == nil {
+	updateOrderStatusToUnknownStmt, err := db.Prepare(`UPDATE orders SET status='UNKNOWN' WHERE order_num=$1`)
+	if err != nil {
 		log.Println("cannot prepare updateOrderStatusToUnknownStmt:", err)
 	}
-	selectNotProcessedOrdersStmt, err := db.Prepare(`SELECT (order_num) FROM orders WHERE status=NEW OR status=PROCESSING`)
-	if err == nil {
+	selectNotProcessedOrdersStmt, err := db.Prepare(`SELECT (order_num) FROM orders WHERE status='NEW' OR status='PROCESSING'`)
+	if err != nil {
 		log.Println("cannot prepare selectNotProcessedOrdersStmt:", err)
 	}
-	selectBalacneAndWithdrawnStmt, err := db.Prepare(`SELECT (orders.accrual_sum - withdrawals.withdrawal_sum, withdrawals.withdrawal_sum)
-	FROM (SELECT SUM(accrual) AS accrual_sum FROM orders WHERE status = PROCESSED AND user_id = $1) orders,
-	(SELECT SUM(accrual) AS withdrawal_sum FROM withdrawals) withdrawals WHERE user_id = $1`)
+	selectBalacneAndWithdrawnStmt, err := db.Prepare(`SELECT SUM(accrual) AS accrual_sum from orders where status = 'PROCESSED' and user_id = $1 UNION SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1;`)
 	if err != nil {
 		log.Println("cannot prepare selectBalacneAndWithdrawnStmt:", err)
 	}
@@ -174,7 +172,7 @@ func SetStorage(db *sql.DB) error {
 	}
 	m, err := migrate.NewWithDatabaseInstance(
 		"file://internal/gophermart/migrations",
-		"postgres", driver)
+		"postgresql://leonidagupov@localhost:5432/accrual", driver)
 	if err != nil {
 		return fmt.Errorf("could not create migration: %w", err)
 	}
