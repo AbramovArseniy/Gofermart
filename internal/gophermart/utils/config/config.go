@@ -20,7 +20,7 @@ func New() *Config {
 	flag.StringVar(&cfg.Address, "a", "127.0.0.1:8080", "set server listening address")
 	flag.StringVar(&cfg.DBAddress, "d", "", "set the DB address")
 	flag.StringVar(&cfg.Accrual, "r", "", "accrual system addres")
-	flag.StringVar(&cfg.JWTSecret, "js", "", "secret token for jwt")
+	flag.StringVar(&cfg.JWTSecret, "js", "secret", "secret token for jwt")
 	flag.Parse()
 
 	if err := env.Parse(&cfg); err != nil {
