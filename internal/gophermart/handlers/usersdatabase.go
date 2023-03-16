@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	insertUserStmt string = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
+	// insertUserStmt string = `INSERT INTO users (login, password_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id`
 	selectUserStmt string = `SELECT id, login, password_hash FROM users WHERE login = $1`
 )
 
@@ -46,20 +46,17 @@ func (d *DBStorage) RegisterNewUser(login string, password string) (User, error)
 		HashPassword: password,
 	}
 	log.Printf("user: %+v", user)
-	tx, err := d.db.BeginTx(d.ctx, nil)
+
+	tx, err := d.db.Begin()
 	if err != nil {
 		return User{}, ErrAlarm
 	}
 	defer tx.Rollback()
 	log.Println("1: everything still is ok")
-	insertUserStmt, err := tx.PrepareContext(d.ctx, insertUserStmt)
-	if err != nil {
-		return User{}, ErrAlarm2
-	}
-	defer insertUserStmt.Close()
+	insertUserStmt, err := d.db.Prepare("INSERT INTO users (login, password_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id")
+	txInsertUserStmt := tx.StmtContext(d.ctx, insertUserStmt)
 	log.Println("2: everything still ok")
-	row := insertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
-	log.Printf("row: %+v", row)
+	row := txInsertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
 	if err := row.Scan(&user.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return User{}, ErrKeyNotFound
@@ -67,6 +64,26 @@ func (d *DBStorage) RegisterNewUser(login string, password string) (User, error)
 		return User{}, ErrScanData
 	}
 	log.Printf("user: %+v", user)
+	// tx, err := d.db.BeginTx(d.ctx, nil)
+	// if err != nil {
+	// 	return User{}, ErrAlarm
+	// }
+	// defer tx.Rollback()
+	// insertUserStmt, err := tx.PrepareContext(d.ctx, insertUserStmt) // ОШИБКА ТУТ
+	// if err != nil {
+	// 	return User{}, ErrAlarm2
+	// }
+	// defer insertUserStmt.Close()
+	// log.Println("2: everything still ok")
+	// row := insertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
+	// log.Printf("row: %+v", row)
+	// if err := row.Scan(&user.ID); err != nil {
+	// 	if errors.Is(err, sql.ErrNoRows) {
+	// 		return User{}, ErrKeyNotFound
+	// 	}
+	// 	return User{}, ErrScanData
+	// }
+	// log.Printf("user: %+v", user)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		if pgErr.Code == pgerrcode.UniqueViolation {
