@@ -41,36 +41,40 @@ func (u UserData) CheckData() error {
 	return nil
 }
 
-// type UserDB interface {
-// 	RegisterNewUser(login string, password string) (User, error)
-// 	GetUserData(login string) (User, error)
-// }
+type UserDB interface {
+	RegisterNewUser(login string, password string) (User, error)
+	GetUserData(login string) (User, error)
+}
 
 const UserIDReq = "user_id"
 
 type Authorization interface {
 	GenerateToken(user User) (string, error)
+	RegisterUser(userdata UserData) (User, error)
+	LoginUser(userdata UserData) (User, error)
 	GetUserID(r *http.Request) int
 	AuthMiddleware() func(h http.Handler) http.Handler
 }
 
 type AuthJWT struct {
-	AuthToken *jwtauth.JWTAuth
+	UserStorage UserDB
+	AuthToken   *jwtauth.JWTAuth
 }
 
-func NewAuth(secret string) *AuthJWT {
+func NewAuth(store UserDB, secret string) *AuthJWT {
 	jwtAuth := jwtauth.New("HS256", []byte(secret), nil)
 	return &AuthJWT{
-		AuthToken: jwtAuth,
+		AuthToken:   jwtAuth,
+		UserStorage: store,
 	}
 }
 
-func (g *Gophermart) RegisterUser(userdata UserData) (User, error) {
+func (a *AuthJWT) RegisterUser(userdata UserData) (User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(userdata.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return User{}, ErrHashGenerate
 	}
-	user, err := g.Storage.RegisterNewUser(userdata.Login, string(hash))
+	user, err := a.UserStorage.RegisterNewUser(userdata.Login, string(hash))
 	if err != nil && !errors.Is(err, ErrUserExists) {
 		return User{}, ErrNewRegistration
 	}
@@ -80,8 +84,8 @@ func (g *Gophermart) RegisterUser(userdata UserData) (User, error) {
 	return user, nil
 }
 
-func (g *Gophermart) LoginUser(userdata UserData) (User, error) {
-	user, err := g.Storage.GetUserData(userdata.Login)
+func (a *AuthJWT) LoginUser(userdata UserData) (User, error) {
+	user, err := a.UserStorage.GetUserData(userdata.Login)
 	if err != nil {
 		return User{}, err
 	}

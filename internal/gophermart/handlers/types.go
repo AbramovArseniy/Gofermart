@@ -12,8 +12,8 @@ type Storage interface {
 	GetOrderUserByNum(orderNum string) (userID int, exists bool, err error)
 	GetOrdersByUser(authUserID int) (orders []Order, exist bool, err error)
 	GetBalance(authUserID int) (balance float64, withdrawn float64, err error)
-	GetUserData(login string) (User, error)
-	RegisterNewUser(login string, password string) (User, error)
+	// GetUserData(login string) (User, error)
+	// RegisterNewUser(login string, password string) (User, error)
 	UpgradeOrderStatus(accrualSysClient Client, orderNum string) error
 	GetWithdrawalsByUser(authUserID int) (withdrawals []Withdrawal, exists bool, err error)
 	CheckOrders(accrualSysClient Client)
@@ -143,14 +143,7 @@ type Gophermart struct {
 	Auth               Authorization // added A
 }
 
-// уже в пакете services. не перемещать
-// type User struct {
-// 	Login        string
-// 	HashPassword string
-// 	ID           int
-// }
-
-func NewGophermart(accrualSysAddress string, database *DataBase, auth string) *Gophermart {
+func NewGophermart(accrualSysAddress string, database *DataBase, auth *AuthJWT) *Gophermart {
 	return &Gophermart{
 		Storage: database,
 		AccrualSysClient: Client{
@@ -163,7 +156,7 @@ func NewGophermart(accrualSysAddress string, database *DataBase, auth string) *G
 			ID:           1,
 		},
 		CheckOrderInterval: 5 * time.Second,
-		Auth:               NewAuth(auth), // added A
+		Auth:               auth, // added A
 	}
 }
 

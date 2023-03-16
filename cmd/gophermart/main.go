@@ -20,9 +20,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error during open db %s", err)
 	}
-
 	database.Migrate()
-	g := handlers.NewGophermart(cfg.Accrual, database, cfg.JWTSecret)
+	userStore, err := handlers.NewUserDataBase(context, cfg.DBAddress)
+	if err != nil {
+		log.Println("main: couldn't initialize user storage:", err)
+	}
+	auth := handlers.NewAuth(userStore, cfg.JWTSecret)
+	g := handlers.NewGophermart(cfg.Accrual, database, auth)
 	defer g.Storage.Close()
 	r := g.Router()
 	s := http.Server{

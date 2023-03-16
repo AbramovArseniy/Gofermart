@@ -234,7 +234,7 @@ func (g *Gophermart) RegistHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, fmt.Sprintf("no data provided: %s", err.Error()), http.StatusBadRequest)
 		return nil
 	}
-	user, err := g.RegisterUser(userData)
+	user, err := g.Auth.RegisterUser(userData)
 	if err != nil && !errors.Is(err, ErrInvalidData) {
 		log.Printf("RegistHandler: error while register handler: %v", err)
 		http.Error(c.Response().Writer, "RegistHandler: can't login", http.StatusInternalServerError)
@@ -291,7 +291,7 @@ func (g *Gophermart) AuthHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, fmt.Sprintf("no data provided: %s", err.Error()), http.StatusBadRequest)
 		return nil
 	}
-	user, err := g.LoginUser(userData)
+	user, err := g.Auth.LoginUser(userData)
 	if err != nil && !errors.Is(err, ErrInvalidData) {
 		log.Printf("AuthHandler: error while register handler: %v", err)
 		http.Error(c.Response().Writer, "AuthHandler: can't login", http.StatusInternalServerError)
