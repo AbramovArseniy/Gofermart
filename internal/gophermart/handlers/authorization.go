@@ -13,6 +13,7 @@ var (
 	ErrUserExists      = errors.New("such user already exist in DB")
 	ErrNewRegistration = errors.New("error while register user")
 	ErrInvalidData     = errors.New("error user data is invalid")
+	ErrHashGenerate    = errors.New("error can't generate hash")
 )
 
 type User struct {
@@ -36,10 +37,10 @@ func (u UserData) CheckData() error {
 	return nil
 }
 
-type UserDB interface {
-	RegisterNewUser(login string, password string) (User, error)
-	GetUserData(login string) (User, error)
-}
+// type UserDB interface {
+// 	RegisterNewUser(login string, password string) (User, error)
+// 	GetUserData(login string) (User, error)
+// }
 
 const UserIDReq = "user_id"
 
@@ -63,14 +64,14 @@ func NewAuth(secret string) *AuthJWT {
 func (g *Gophermart) RegisterUser(userdata UserData) (User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(userdata.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return User{}, ErrNewRegistration
+		return User{}, ErrHashGenerate
 	}
 	user, err := g.Storage.RegisterNewUser(userdata.Login, string(hash))
+	if err != nil && !errors.Is(err, ErrUserExists) {
+		return User{}, ErrNewRegistration
+	}
 	if errors.Is(err, ErrUserExists) {
 		return User{}, ErrUserExists
-	}
-	if err != nil {
-		return User{}, ErrNewRegistration
 	}
 	return user, nil
 }
