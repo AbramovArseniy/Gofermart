@@ -45,25 +45,43 @@ func (d *DBStorage) RegisterNewUser(login string, password string) (User, error)
 		Login:        login,
 		HashPassword: password,
 	}
-	log.Printf("user: %+v", user)
-
-	tx, err := d.db.Begin()
-	if err != nil {
-		return User{}, ErrAlarm
-	}
-	defer tx.Rollback()
-	log.Println("1: everything still is ok")
-	insertUserStmt, err := d.db.Prepare("INSERT INTO users (login, password_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id")
-	txInsertUserStmt := tx.StmtContext(d.ctx, insertUserStmt)
-	log.Println("2: everything still ok")
-	row := txInsertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
+	log.Printf("user before Insert: %+v", user)
+	query := `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
+	row := d.db.QueryRowContext(context.Background(), query, login, password)
 	if err := row.Scan(&user.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return User{}, ErrKeyNotFound
 		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == pgerrcode.UniqueViolation {
+				return User{}, ErrUserExists
+			}
+		}
 		return User{}, ErrScanData
 	}
-	log.Printf("user: %+v", user)
+	log.Printf("user after Insert: %+v", user)
+
+	// // NEW VERSION
+	// tx, err := d.db.Begin()
+	// if err != nil {
+	// 	return User{}, ErrAlarm
+	// }
+	// defer tx.Rollback()
+	// log.Println("1: everything still is ok")
+	// insertUserStmt, err := d.db.Prepare("INSERT INTO users (login, password_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id")
+	// txInsertUserStmt := tx.StmtContext(d.ctx, insertUserStmt)
+	// log.Println("2: everything still ok")
+	// row := txInsertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
+	// if err := row.Scan(&user.ID); err != nil {
+	// 	if errors.Is(err, sql.ErrNoRows) {
+	// 		return User{}, ErrKeyNotFound
+	// 	}
+	// 	return User{}, ErrScanData
+	// }
+	// log.Printf("user after Insert: %+v", user)
+
+	// OLD VERSION
 	// tx, err := d.db.BeginTx(d.ctx, nil)
 	// if err != nil {
 	// 	return User{}, ErrAlarm
@@ -84,12 +102,6 @@ func (d *DBStorage) RegisterNewUser(login string, password string) (User, error)
 	// 	return User{}, ErrScanData
 	// }
 	// log.Printf("user: %+v", user)
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		if pgErr.Code == pgerrcode.UniqueViolation {
-			return User{}, ErrUserExists
-		}
-	}
 	return user, nil
 }
 
