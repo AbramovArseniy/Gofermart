@@ -274,7 +274,7 @@ func (d *DataBase) RegisterNewUser(login string, password string) (User, error) 
 		Login:        login,
 		HashPassword: password,
 	}
-
+	log.Printf("user: %+v", user)
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
 		return User{}, err
@@ -288,7 +288,13 @@ func (d *DataBase) RegisterNewUser(login string, password string) (User, error) 
 	defer insertUserStmt.Close()
 
 	row := insertUserStmt.QueryRowContext(context.Background(), user.Login, user.HashPassword)
-	err = row.Scan(&user.ID)
+	if err := row.Scan(&user.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return User{}, ErrKeyNotFound
+		}
+		return User{}, fmt.Errorf("ERR: UNABLE to Scan userID from DB (RegisterNewUser): %w", err)
+	}
+	log.Printf("user: %+v", user)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		if pgErr.Code == pgerrcode.UniqueViolation {

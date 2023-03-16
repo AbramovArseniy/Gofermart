@@ -11,9 +11,10 @@ import (
 
 var (
 	ErrUserExists      = errors.New("such user already exist in DB")
-	ErrNewRegistration = errors.New("error while register user")
+	ErrNewRegistration = errors.New("error while register user - main problem")
 	ErrInvalidData     = errors.New("error user data is invalid")
 	ErrHashGenerate    = errors.New("error can't generate hash")
+	ErrKeyNotFound     = errors.New("error user ID not found")
 )
 
 type User struct {
