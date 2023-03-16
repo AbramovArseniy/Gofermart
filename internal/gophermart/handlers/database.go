@@ -240,7 +240,7 @@ func (d *DataBase) CheckOrders(accrualSysClient Client) {
 
 	defer tx.Rollback()
 
-	selectNotProcessedOrdersStmt, err := tx.PrepareContext(d.ctx, selectNotProcessedOrdersStmt)
+	selectNotProcessedOrdersStmt, err := tx.PrepareContext(d.ctx, selectNotProcessedOrdersStmt) // ОШИБКА ЗДЕСЬ
 	if err != nil {
 		log.Printf("error in chechorder func2: %s", err)
 	}
