@@ -286,13 +286,14 @@ func (d *DataBase) RegisterNewUser(login string, password string) (User, error) 
 		return User{}, err
 	}
 	defer insertUserStmt.Close()
-
-	row := insertUserStmt.QueryRowContext(context.Background(), user.Login, user.HashPassword)
+	log.Println("everything still is ok")
+	row := insertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
+	log.Printf("row: %+v", row)
 	if err := row.Scan(&user.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return User{}, ErrKeyNotFound
 		}
-		return User{}, fmt.Errorf("ERR: UNABLE to Scan userID from DB (RegisterNewUser): %w", err)
+		return User{}, ErrScanData
 	}
 	log.Printf("user: %+v", user)
 	var pgErr *pgconn.PgError

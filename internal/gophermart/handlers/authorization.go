@@ -12,6 +12,7 @@ import (
 var (
 	ErrUserExists      = errors.New("such user already exist in DB")
 	ErrNewRegistration = errors.New("error while register user - main problem")
+	ErrScanData        = errors.New("error while scan user ID")
 	ErrInvalidData     = errors.New("error user data is invalid")
 	ErrHashGenerate    = errors.New("error can't generate hash")
 	ErrKeyNotFound     = errors.New("error user ID not found")
