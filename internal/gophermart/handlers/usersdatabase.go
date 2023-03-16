@@ -51,13 +51,13 @@ func (d *DBStorage) RegisterNewUser(login string, password string) (User, error)
 		return User{}, ErrAlarm
 	}
 	defer tx.Rollback()
-
+	log.Println("1: everything still is ok")
 	insertUserStmt, err := tx.PrepareContext(d.ctx, insertUserStmt)
 	if err != nil {
 		return User{}, ErrAlarm2
 	}
 	defer insertUserStmt.Close()
-	log.Println("everything still is ok")
+	log.Println("2: everything still ok")
 	row := insertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
 	log.Printf("row: %+v", row)
 	if err := row.Scan(&user.ID); err != nil {

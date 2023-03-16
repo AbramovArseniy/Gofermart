@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -10,14 +11,14 @@ import (
 )
 
 var (
-	ErrUserExists      = errors.New("such user already exist in DB")
-	ErrNewRegistration = errors.New("error while register user - main problem")
-	ErrScanData        = errors.New("error while scan user ID")
-	ErrInvalidData     = errors.New("error user data is invalid")
-	ErrHashGenerate    = errors.New("error can't generate hash")
-	ErrKeyNotFound     = errors.New("error user ID not found")
-	ErrAlarm           = errors.New("error tx.BeginTx alarm")
-	ErrAlarm2          = errors.New("error tx.PrepareContext alarm")
+	ErrUserExists = errors.New("such user already exist in DB")
+	// ErrNewRegistration = errors.New("error while register user - main problem")
+	ErrScanData     = errors.New("error while scan user ID")
+	ErrInvalidData  = errors.New("error user data is invalid")
+	ErrHashGenerate = errors.New("error can't generate hash")
+	ErrKeyNotFound  = errors.New("error user ID not found")
+	ErrAlarm        = errors.New("error tx.BeginTx alarm")
+	ErrAlarm2       = errors.New("error tx.PrepareContext alarm")
 )
 
 type User struct {
@@ -75,12 +76,19 @@ func (a *AuthJWT) RegisterUser(userdata UserData) (User, error) {
 		return User{}, ErrHashGenerate
 	}
 	user, err := a.UserStorage.RegisterNewUser(userdata.Login, string(hash))
-	if err != nil && !errors.Is(err, ErrUserExists) {
-		return User{}, ErrNewRegistration
-	}
-	if errors.Is(err, ErrUserExists) {
+	var ErrUnique *ErrUnique
+	if errors.As(err, &ErrUnique) {
 		return User{}, ErrUserExists
 	}
+	if err != nil {
+		return User{}, NewErrorRegist(userdata, err)
+	}
+	// if err != nil && !errors.Is(err, ErrUserExists) {
+	// 	return User{}, ErrNewRegistration
+	// }
+	// if errors.Is(err, ErrUserExists) {
+	// 	return User{}, ErrUserExists
+	// }
 	return user, nil
 }
 
@@ -127,6 +135,7 @@ func (a *AuthJWT) getTokenReqs(user User) (map[string]interface{}, error) {
 
 func (a *AuthJWT) GetUserID(r *http.Request) int {
 	_, reqs, _ := jwtauth.FromContext(r.Context())
+	log.Printf("reqs: %+v", reqs)
 	userID := reqs[UserIDReq].(float64)
 	return int(userID)
 }

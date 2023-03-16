@@ -141,7 +141,9 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
-	orders, exist, err := g.Storage.GetOrdersByUser(g.Auth.GetUserID(c.Request()))
+	authuserID := g.Auth.GetUserID(c.Request())
+	log.Printf("authuserID: %+v", authuserID)
+	orders, exist, err := g.Storage.GetOrdersByUser(authuserID)
 	if err != nil {
 		log.Println("GetOrdersHandler: error while getting orders by user:", err)
 		return fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
@@ -234,10 +236,11 @@ func (g *Gophermart) RegistHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, fmt.Sprintf("no data provided: %s", err.Error()), http.StatusBadRequest)
 		return nil
 	}
+	log.Printf("RegistHandler - userdata: %+v", userData)
 	user, err := g.Auth.RegisterUser(userData)
 	if err != nil && !errors.Is(err, ErrInvalidData) {
-		log.Printf("RegistHandler: error while register handler: %v", err)
-		http.Error(c.Response().Writer, "RegistHandler: can't login", http.StatusInternalServerError)
+		log.Printf("RegistHandler: error while REGISTER: %v", err)
+		http.Error(c.Response().Writer, "RegistHandler: can't login", http.StatusLoopDetected) // must be 500, changed to 508 for test
 		return nil
 	}
 	if errors.Is(err, ErrInvalidData) {
