@@ -22,19 +22,19 @@ import (
 var (
 	selectOrdersByUserStmt string = `SELECT (order_num, order_status, accrual, date_time) FROM orders WHERE user_id=$1`
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
-	insertOrderStmt                   string = `INSERT INTO orders (user_id, order_num, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
-	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
-	updateOrderStatusToProcessedStmt  string = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
-	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
-	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
-	// selectNotProcessedOrdersStmt      string        = `SELECT (order_num) FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`  УБРАЛ ВМЕСТЕ С CHECKORDERS method
-	selectBalacneAndWithdrawnStmt string = `SELECT SUM(accrual) AS accrual_sum from orders where order_status = 'PROCESSED' and user_id = $1 UNION SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1;`
-	insertWirdrawalStmt           string = "INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
-	selectWithdrawalsByUserStmt   string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`
-	insertUserStmt                string = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
-	selectUserStmt                string = `SELECT id, login, password_hash FROM users WHERE login = $1`
-	selectUserIdByOrderNumStmt    string = `SELECT user_id FROM orders WHERE EXISTS(SELECT user_id FROM orders WHERE order_num = $1);`
-	// checkOrderInterval                time.Duration = 5 * time.Second УБРАЛ ВМЕСТЕ С CHECKORDERS method
+	insertOrderStmt                   string        = `INSERT INTO orders (user_id, order_num, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
+	updateOrderStatusToProcessingStmt string        = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
+	updateOrderStatusToProcessedStmt  string        = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
+	updateOrderStatusToInvalidStmt    string        = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
+	updateOrderStatusToUnknownStmt    string        = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
+	selectNotProcessedOrdersStmt      string        = `SELECT (order_num) FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
+	selectBalacneAndWithdrawnStmt     string        = `SELECT SUM(accrual) AS accrual_sum from orders where order_status = 'PROCESSED' and user_id = $1 UNION SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1;`
+	insertWirdrawalStmt               string        = "INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
+	selectWithdrawalsByUserStmt       string        = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`
+	insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
+	selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
+	selectUserIdByOrderNumStmt        string        = `SELECT user_id FROM orders WHERE EXISTS(SELECT user_id FROM orders WHERE order_num = $1);`
+	checkOrderInterval                time.Duration = 5 * time.Second
 )
 
 type DataBase struct {
@@ -230,44 +230,44 @@ func (d *DataBase) GetWithdrawalsByUser(authUserID int) ([]Withdrawal, bool, err
 	return w, true, nil
 }
 
-// func (d *DataBase) CheckOrders(accrualSysClient Client) {
-// 	ticker := time.NewTicker(checkOrderInterval)
+func (d *DataBase) CheckOrders(accrualSysClient Client) {
+	ticker := time.NewTicker(checkOrderInterval)
 
-// 	tx, err := d.db.BeginTx(d.ctx, nil)
-// 	if err != nil {
-// 		log.Printf("error in checkorder func: %s", err)
-// 	}
+	tx, err := d.db.BeginTx(d.ctx, nil)
+	if err != nil {
+		log.Printf("error in checkorder func: %s", err)
+	}
 
-// 	defer tx.Rollback()
+	defer tx.Rollback()
 
-// 	selectNotProcessedOrdersStmt, err := tx.PrepareContext(d.ctx, selectNotProcessedOrdersStmt)
-// 	if err != nil {
-// 		log.Printf("error in chechorder func2: %s", err)
-// 	}
+	selectNotProcessedOrdersStmt, err := tx.PrepareContext(d.ctx, selectNotProcessedOrdersStmt)
+	if err != nil {
+		log.Printf("error in chechorder func2: %s", err)
+	}
 
-// 	defer selectNotProcessedOrdersStmt.Close()
+	defer selectNotProcessedOrdersStmt.Close()
 
-// 	for {
-// 		<-ticker.C
-// 		rows, err := selectNotProcessedOrdersStmt.Query()
-// 		if errors.Is(err, sql.ErrNoRows) {
-// 			return
-// 		}
-// 		if err != nil {
-// 			log.Println("CheckOrders: error while selecting data from Database")
-// 			return
-// 		}
-// 		for rows.Next() {
-// 			var orderNum string
-// 			rows.Scan(&orderNum)
-// 			d.UpgradeOrderStatus(accrualSysClient, orderNum)
-// 		}
-// 		if rows.Err() != nil {
-// 			log.Println("CheckOrders: error while reading rows")
-// 		}
-// 	}
+	for {
+		<-ticker.C
+		rows, err := selectNotProcessedOrdersStmt.Query()
+		if errors.Is(err, sql.ErrNoRows) {
+			return
+		}
+		if err != nil {
+			log.Println("CheckOrders: error while selecting data from Database")
+			return
+		}
+		for rows.Next() {
+			var orderNum string
+			rows.Scan(&orderNum)
+			d.UpgradeOrderStatus(accrualSysClient, orderNum)
+		}
+		if rows.Err() != nil {
+			log.Println("CheckOrders: error while reading rows")
+		}
+	}
 
-// }
+}
 
 func (d *DataBase) RegisterNewUser(login string, password string) (User, error) {
 	user := User{
