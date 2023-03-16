@@ -16,7 +16,7 @@ type Storage interface {
 	RegisterNewUser(login string, password string) (User, error)
 	UpgradeOrderStatus(accrualSysClient Client, orderNum string) error
 	GetWithdrawalsByUser(authUserID int) (withdrawals []Withdrawal, exists bool, err error)
-	CheckOrders(accrualSysClient Client)
+	// CheckOrders(accrualSysClient Client) // НЕ ПРИМЕНЯЕТСЯ?
 	Close()
 }
 

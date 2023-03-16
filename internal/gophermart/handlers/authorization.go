@@ -16,6 +16,8 @@ var (
 	ErrInvalidData     = errors.New("error user data is invalid")
 	ErrHashGenerate    = errors.New("error can't generate hash")
 	ErrKeyNotFound     = errors.New("error user ID not found")
+	ErrAlarm           = errors.New("error tx.BeginTx alarm")
+	ErrAlarm2          = errors.New("error tx.PrepareContext alarm")
 )
 
 type User struct {
