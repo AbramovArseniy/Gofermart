@@ -4,5 +4,5 @@ CREATE TABLE withdrawals (
 	order_num VARCHAR(255) NOT NULL,
     accrual BIGINT NOT NULL,
     created_at TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id)
+    CONSTRAINT n_user FOREIGN KEY(user_id) REFERENCES users (id)
 );

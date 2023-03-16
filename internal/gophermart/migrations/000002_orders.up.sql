@@ -4,5 +4,5 @@ CREATE TABLE orders (
     order_status VARCHAR(16) NOT NULL,
     accrual BIGINT,
     date_time TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id)
+    CONSTRAINT n_user FOREIGN KEY(user_id) REFERENCES users (id)
 );
