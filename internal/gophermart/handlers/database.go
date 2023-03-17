@@ -456,6 +456,7 @@ func (d *DataBase) GetOrdersByUser(authUserID int) (orders []Order, exist bool, 
 		if err != nil {
 			return nil, false, fmt.Errorf("error while scanning rows from database: %w", err)
 		}
+
 		orders = append(orders, order)
 	}
 	if rows.Err() != nil {

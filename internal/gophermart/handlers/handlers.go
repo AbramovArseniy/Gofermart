@@ -22,7 +22,6 @@ const (
 
 func OrderNumIsRight(number string) bool {
 	checkNumber := checksum(number)
-	log.Println(checkNumber)
 	return checkNumber == 0
 }
 
@@ -73,7 +72,6 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while getting user id by order number: %w", err)
 	}
-	log.Printf("is order exist? %t", exists)
 	if !numIsRight {
 		c.Response().Writer.WriteHeader(http.StatusUnprocessableEntity)
 		return nil
@@ -83,7 +81,6 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		Number: orderNum,
 	}
 	if !exists {
-		log.Printf("order %+v", &order)
 		err = g.Storage.SaveOrder(&order)
 		if err != nil {
 			errorr := fmt.Sprintf("cannot save order %s", err)
@@ -94,7 +91,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		return err
 	}
 
-	log.Printf("orderer %d, curler %d", order.UserID, g.Auth.GetUserID(c.Request().Header))
+	log.Printf("orderer %d, curler %d", userID, g.Auth.GetUserID(c.Request().Header))
 	if userID == g.Auth.GetUserID(c.Request().Header) {
 		c.Response().Writer.WriteHeader(http.StatusOK)
 		return nil
@@ -107,7 +104,6 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	c.Response().Header().Set("Content-Type", "application/json")
 	userid := g.Auth.GetUserID(c.Request().Header)
-	log.Println(userid)
 	orders, exist, err := g.Storage.GetOrdersByUser(userid)
 	if err != nil {
 		c.Response().Writer.WriteHeader(http.StatusInternalServerError)
@@ -269,7 +265,9 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 func (g *Gophermart) Router() *echo.Echo {
 	e := echo.New()
 
-	e.Use(middleware.Logger())
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+		Format: "time=${time_rfc3339}, method=${method}, uri=${uri}, status=${status}, error=${error}\n",
+	}))
 	e.POST("/api/user/register", g.RegistHandler)
 	e.POST("/api/user/login", g.AuthHandler)
 
