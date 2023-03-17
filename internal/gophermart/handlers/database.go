@@ -408,9 +408,7 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (userID int, exists bool, 
 		return userID, exists, err
 	}
 
-	if userID != 0 {
-		exists = true
-	}
+	exists = true
 
 	return userID, exists, nil
 }
