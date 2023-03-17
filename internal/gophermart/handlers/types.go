@@ -71,27 +71,3 @@ func NewGophermart(accrualSysAddress, secret string, database *DataBase, auth *A
 		secret:             secret,
 	}
 }
-
-// func (d Database) SetStorage(address string) error {
-// 	driver, err := postgres.WithInstance(d.DB, &postgres.Config{})
-// 	if err != nil {
-// 		return fmt.Errorf("could not create driver: %w", err)
-// 	}
-// 	m, err := migrate.NewWithDatabaseInstance(
-// 		"file://internal/gophermart/migrations",
-// 		address, driver)
-// 	log.Println("migrations opened")
-// 	if err != nil {
-// 		return fmt.Errorf("could not create migration: %w", err)
-// 	}
-
-// 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-// 		return err
-// 	}
-// 	log.Printf("migrations %+v", m)
-// 	return nil
-// }
-
-// func (d Database) Close() {
-// 	d.DB.Close()
-// }

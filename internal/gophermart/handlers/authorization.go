@@ -133,7 +133,6 @@ func (a *AuthJWT) getTokenReqs(user User) (map[string]interface{}, error) {
 		return nil, errors.New("user id is required")
 	}
 	reqs[UserIDReq] = user.ID
-	log.Println(user.ID)
 	return reqs, nil
 }
 

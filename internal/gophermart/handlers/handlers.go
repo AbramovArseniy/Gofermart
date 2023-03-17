@@ -81,6 +81,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		Number: orderNum,
 	}
 	if !exists {
+		log.Println("user id while saving:", order.UserID)
 		err = g.Storage.SaveOrder(&order)
 		if err != nil {
 			errorr := fmt.Sprintf("cannot save order %s", err)
