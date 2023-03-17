@@ -63,7 +63,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while reading request body: %w", err)
 	}
-	orderNum := fmt.Sprintf("%x", body)
+	orderNum := string(body)
 	order := Order{}
 	numIsRight := OrderNumIsRight(orderNum)
 	userID, exists, err := g.Storage.GetOrderUserByNum(orderNum)
@@ -73,6 +73,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while getting user id by order number: %w", err)
 	}
+	log.Println(numIsRight)
 	if !numIsRight {
 		c.Response().Writer.WriteHeader(http.StatusUnprocessableEntity)
 		return nil
@@ -86,7 +87,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		}
 	}
 	if order.UserID == g.Auth.GetUserID(c.Request()) {
-		c.Response().Writer.WriteHeader(http.StatusOK)
+		c.Response().Writer.WriteHeader(http.StatusAccepted)
 		return nil
 	} else {
 		http.Error(c.Response().Writer, "order already uploaded by another user", http.StatusConflict)
@@ -97,8 +98,10 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	c.Response().Header().Set("Content-Type", "application/json")
 	authuserID := g.Auth.GetUserID(c.Request())
+	log.Printf("authuserID: %+v", authuserID)
 	orders, exist, err := g.Storage.GetOrdersByUser(authuserID)
 	if err != nil {
+		c.Response().Writer.WriteHeader(http.StatusInternalServerError)
 		return fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
 	}
 	if !exist {
@@ -107,12 +110,12 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	}
 	var body []byte
 	if body, err = json.Marshal(&orders); err != nil {
-		http.Error(c.Response().Writer, "cannot marshal data to json", http.StatusInternalServerError)
+		c.Response().Writer.WriteHeader(http.StatusInternalServerError)
 		return err
 	}
 	_, err = c.Response().Writer.Write(body)
 	if err != nil {
-		http.Error(c.Response().Writer, "cannot write response body", http.StatusInternalServerError)
+		c.Response().Writer.WriteHeader(http.StatusInternalServerError)
 		return err
 	}
 	return nil
