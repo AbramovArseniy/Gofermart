@@ -26,12 +26,14 @@ var (
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
 	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
 	selectNotProcessedOrdersStmt      string = `SELECT (order_num) FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
-	selectBalacneAndWithdrawnStmt     string = `SELECT SUM(accrual) AS accrual_sum from orders where order_status = 'PROCESSED' and user_id = $1 UNION SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1;`
+	selectAccraulBalanceOrdersStmt    string = `SELECT SUM(accrual) FROM orders where order_status = 'PROCESSED' and user_id = $1`
+	selectAccrualWithdrawnStmt        string = `SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1`
 	insertWirdrawalStmt               string = "INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
 	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`
 	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
 	selectUserIDByOrderNumStmt string        = `SELECT user_id FROM orders WHERE EXISTS(SELECT user_id FROM orders WHERE order_num = $1);`
+	checkUserDatastmt          string        = `SELECT EXISTS(SELECT login, password_hash FROM users WHERE login = $1 AND password_hash = $2)`
 	checkOrderInterval         time.Duration = 5 * time.Second
 )
 
@@ -169,32 +171,45 @@ func (d *DataBase) UpgradeOrderStatus(accrualSysClient Client, orderNum string) 
 		log.Println("error inserting data to db:", err)
 		return fmt.Errorf("error inserting data to db: %w", err)
 	}
+
 	return nil
 }
 
 func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
-	var balance, withdrawn float64
+	var order, withdrawn float64
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
-		return balance, withdrawn, err
+		return order, withdrawn, err
 	}
 
 	defer tx.Rollback()
 
-	selectBalacneAndWithdrawnStmt, err := tx.PrepareContext(d.ctx, selectBalacneAndWithdrawnStmt)
+	selectAccraulBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccraulBalanceOrdersStmt)
 	if err != nil {
-		return balance, withdrawn, err
+		return order, withdrawn, err
 	}
 
-	defer selectBalacneAndWithdrawnStmt.Close()
+	defer selectAccraulBalanceOrdersStmt.Close()
 
-	err = selectBalacneAndWithdrawnStmt.QueryRow(authUserID).Scan(&balance, &withdrawn)
+	err = selectAccraulBalanceOrdersStmt.QueryRow(authUserID).Scan(&order)
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
 	}
 
-	balance = balance - withdrawn
+	selectAccrualWithdrawnStmt, err := tx.PrepareContext(d.ctx, selectAccrualWithdrawnStmt)
+	if err != nil {
+		return order, withdrawn, err
+	}
+
+	defer selectAccrualWithdrawnStmt.Close()
+
+	err = selectAccrualWithdrawnStmt.QueryRow(authUserID).Scan(&order)
+	if err != nil {
+		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
+	}
+
+	balance := order - withdrawn
 
 	return balance, withdrawn, nil
 }
@@ -404,6 +419,9 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (userID int, exists bool, 
 	row := selectUserIDByOrderNumStmt.QueryRowContext(d.ctx, orderNum)
 
 	err = row.Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return userID, exists, nil
+	}
 	if err != nil {
 		return userID, exists, err
 	}
@@ -452,4 +470,37 @@ func (d *DataBase) GetOrdersByUser(authUserID int) (orders []Order, exist bool, 
 
 func (d *DataBase) Close() {
 	d.db.Close()
+}
+
+func (d *DataBase) CheckUserData(login, hash string) bool {
+	var exist bool
+	tx, err := d.db.BeginTx(d.ctx, nil)
+	if err != nil {
+		log.Printf("error while creating tx %s", err)
+		return false
+	}
+
+	defer tx.Rollback()
+
+	checkUserDatastmt, err := tx.PrepareContext(d.ctx, checkUserDatastmt)
+	if err != nil {
+		log.Printf("error while creating stmt %s", err)
+		return false
+	}
+
+	defer checkUserDatastmt.Close()
+
+	log.Println(login, hash)
+	row := checkUserDatastmt.QueryRowContext(d.ctx, login, hash)
+	err = row.Scan(&exist)
+	if errors.Is(err, sql.ErrNoRows) {
+		log.Println(err)
+		return exist
+	}
+	if err != nil {
+		log.Println(err)
+		return exist
+	}
+	log.Println(exist)
+	return exist
 }

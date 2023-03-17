@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 
+	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 const (
@@ -310,7 +312,7 @@ func (g *Gophermart) AuthHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "AuthHandler: can't generate token", http.StatusInternalServerError)
 		return nil
 	}
-	c.Response().Header().Set("Authorization", "Bearer "+token)
+	c.Response().Header().Set("Authorization", token)
 	c.Response().Writer.WriteHeader(http.StatusOK)
 	return nil
 }
@@ -391,13 +393,17 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 // }
 
 func (g *Gophermart) Router() *echo.Echo {
+
 	e := echo.New()
-	e.POST("/api/user/orders", g.PostOrderHandler)
-	e.GET("/api/user/orders", g.GetOrdersHandler)
+	e.Use(middleware.Logger())
 	e.POST("/api/user/register", g.RegistHandler)
 	e.POST("/api/user/login", g.AuthHandler)
-	e.POST("/api/user/balance/withdraw", g.PostWithdrawalHandler)
-	e.GET("/api/user/balance", g.GetBalanceHandler)
-	e.GET("/api/user/withdrawals", g.GetWithdrawalsHandler)
+
+	logged := e.Group("/api/user", echojwt.JWT([]byte(g.secret)))
+	logged.POST("/orders", g.PostOrderHandler)
+	logged.GET("/orders", g.GetOrdersHandler)
+	logged.POST("/balance/withdraw", g.PostWithdrawalHandler)
+	logged.GET("/balance", g.GetBalanceHandler)
+	logged.GET("/withdrawals", g.GetWithdrawalsHandler)
 	return e
 }
