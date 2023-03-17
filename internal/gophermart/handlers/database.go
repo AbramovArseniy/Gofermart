@@ -202,7 +202,7 @@ func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
 
 	defer selectAccrualWithdrawnStmt.Close()
 
-	err = selectAccrualWithdrawnStmt.QueryRow(authUserID).Scan(&order)
+	err = selectAccrualWithdrawnStmt.QueryRow(authUserID).Scan(&withdrawn)
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
 	}
