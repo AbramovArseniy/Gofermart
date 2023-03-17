@@ -9,8 +9,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 
 	// "github.com/jackc/pgconn"
@@ -33,7 +31,7 @@ var (
 	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`
 	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
-	selectUserIdByOrderNumStmt string        = `SELECT user_id FROM orders WHERE EXISTS(SELECT user_id FROM orders WHERE order_num = $1);`
+	selectUserIDByOrderNumStmt string        = `SELECT user_id FROM orders WHERE EXISTS(SELECT user_id FROM orders WHERE order_num = $1);`
 	checkOrderInterval         time.Duration = 5 * time.Second
 )
 
@@ -61,25 +59,57 @@ func NewDataBase(ctx context.Context, dba string) (*DataBase, error) {
 
 func (d *DataBase) Migrate() {
 
-	driver, err := postgres.WithInstance(d.db, &postgres.Config{})
+	// driver, err := postgres.WithInstance(d.db, &postgres.Config{})
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+
+	// m, err := migrate.NewWithDatabaseInstance(
+	// 	"file://migrations",
+	// 	d.dba,
+	// 	driver)
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+
+	// log.Println(m.Version())
+
+	// if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	// 	log.Println(err)
+	// }
+
+	_, err := d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS users (
+		id SERIAL UNIQUE,
+		login VARCHAR UNIQUE NOT NULL,
+		password_hash VARCHAR NOT NULL
+	);`)
 	if err != nil {
-		log.Println(err)
+		log.Printf("error during create users %s", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance(
-		"file://internal/gophermart/migrations",
-		d.dba,
-		driver)
+	_, err = d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS orders (
+		order_num VARCHAR(255) PRIMARY KEY,
+		user_id INT NOT NULL,
+		order_status VARCHAR(16) NOT NULL,
+		accrual BIGINT,
+		date_time TIMESTAMP NOT NULL,
+		CONSTRAINT n_user FOREIGN KEY(user_id) REFERENCES users (id)
+	);`)
 	if err != nil {
-		log.Println(err)
+		log.Printf("error during create orders %s", err)
 	}
 
-	log.Println(m.Version())
-
-	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		log.Println(err)
+	_, err = d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS withdrawals (
+		id serial primary key,
+		user_id INT NOT NULL,
+		order_num VARCHAR(255) NOT NULL,
+		accrual BIGINT NOT NULL,
+		created_at TIMESTAMP NOT NULL,
+		CONSTRAINT n_user FOREIGN KEY(user_id) REFERENCES users (id)
+	);`)
+	if err != nil {
+		log.Printf("error during create orders %s", err)
 	}
-
 }
 
 func (d *DataBase) UpgradeOrderStatus(accrualSysClient Client, orderNum string) error {
@@ -364,7 +394,7 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (userID int, exists bool, 
 
 	defer tx.Rollback()
 
-	selectUserIdByOrderNumStmt, err := tx.PrepareContext(d.ctx, selectUserIdByOrderNumStmt)
+	selectUserIdByOrderNumStmt, err := tx.PrepareContext(d.ctx, selectUserIDByOrderNumStmt)
 	if err != nil {
 		return userID, exists, err
 	}

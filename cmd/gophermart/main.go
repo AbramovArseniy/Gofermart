@@ -12,19 +12,20 @@ import (
 )
 
 func main() {
-
 	context := context.Background()
 	cfg := config.New()
-
 	database, err := handlers.NewDataBase(context, cfg.DBAddress)
 	if err != nil {
 		log.Fatalf("Error during open db %s", err)
 	}
-	database.Migrate()
+
 	userStore, err := handlers.NewUserDataBase(context, cfg.DBAddress)
 	if err != nil {
 		log.Println("main: couldn't initialize user storage:", err)
 	}
+
+	database.Migrate()
+
 	auth := handlers.NewAuth(userStore, cfg.JWTSecret)
 	g := handlers.NewGophermart(cfg.Accrual, database, auth)
 	defer g.Storage.Close()
