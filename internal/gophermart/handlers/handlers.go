@@ -79,6 +79,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	order := Order{
 		UserID: g.Auth.GetUserID(c.Request().Header),
 		Number: orderNum,
+		Status: "NEW",
 	}
 	if !exists {
 		log.Println("user id while saving:", order.UserID)

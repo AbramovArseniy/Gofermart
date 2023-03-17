@@ -508,3 +508,9 @@ Content-Type: application/json
 
 - адрес и порт запуска сервиса: переменная окружения ОС `RUN_ADDRESS` или флаг `-a`
 - адрес подключения к базе данных: переменная окружения ОС `DATABASE_URI` или флаг `-d`
+
+curl -i -X POST http://127.0.0.1:8080/api/user/orders -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NzkxMjQ3MDYsImlhdCI6MTY3OTA4ODcwNiwidXNlcl9pZCI6Nn0.5pWf2G48TpcIJc-zYQPv6nzeSPY3XxyOhS54Y9EsZ84" -H "Content-Type: text/plain" -d "66830464"
+
+curl -i -X POST http://127.0.0.1:8080/api/user/orders -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NzkxMjk4NTUsImlhdCI6MTY3OTA5Mzg1NSwidXNlcl9pZCI6NH0.FqV_qgkKlbn8xG1nIra6d8VSNuESKLpOd9MnImJdXFE" -H "Content-Type: text/plain" -d "66830464"
+
+gophermart_orders_test.go:146:
