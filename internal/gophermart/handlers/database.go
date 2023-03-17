@@ -394,14 +394,14 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (userID int, exists bool, 
 
 	defer tx.Rollback()
 
-	selectUserIdByOrderNumStmt, err := tx.PrepareContext(d.ctx, selectUserIDByOrderNumStmt)
+	selectUserIDByOrderNumStmt, err := tx.PrepareContext(d.ctx, selectUserIDByOrderNumStmt)
 	if err != nil {
 		return userID, exists, err
 	}
 
-	defer selectUserIdByOrderNumStmt.Close()
+	defer selectUserIDByOrderNumStmt.Close()
 
-	row := selectUserIdByOrderNumStmt.QueryRowContext(d.ctx, orderNum)
+	row := selectUserIDByOrderNumStmt.QueryRowContext(d.ctx, orderNum)
 
 	err = row.Scan(&userID)
 	if err != nil {
