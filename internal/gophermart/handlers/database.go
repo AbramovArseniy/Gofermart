@@ -74,6 +74,8 @@ func (d *DataBase) Migrate() {
 		log.Println(err)
 	}
 
+	log.Println(m.Version())
+
 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		log.Println(err)
 	}
