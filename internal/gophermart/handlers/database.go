@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	selectOrdersByUserStmt string = `SELECT (order_num, order_status, accrual, date_time) FROM orders WHERE user_id=$1`
+	selectOrdersByUserStmt string = `SELECT * FROM orders WHERE user_id=$1`
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
 	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
 	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
@@ -452,7 +452,7 @@ func (d *DataBase) GetOrdersByUser(authUserID int) (orders []Order, exist bool, 
 	}
 	for rows.Next() {
 		var order Order
-		err = rows.Scan(&order.Number, &order.Status, &order.Accrual, &order.UploadedAt)
+		err = rows.Scan(&order.Number, &order.UserID, &order.Status, &order.Accrual, &order.UploadedAt)
 		if err != nil {
 			return nil, false, fmt.Errorf("error while scanning rows from database: %w", err)
 		}

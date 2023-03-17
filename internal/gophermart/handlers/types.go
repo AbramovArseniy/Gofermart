@@ -38,7 +38,7 @@ type Balance struct {
 	Withdrawn float64 `json:"withdrawn"`
 }
 type Order struct {
-	UserID     int       `json:"user_id,omitempty"`
+	UserID     int       `json:"-"`
 	Number     string    `json:"number"`
 	Status     string    `json:"status"`
 	Accrual    int       `json:"accrual,omitempty"`
