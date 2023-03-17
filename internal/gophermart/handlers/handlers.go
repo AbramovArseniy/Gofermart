@@ -10,6 +10,7 @@ import (
 
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 const (
@@ -86,6 +87,11 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 			return fmt.Errorf("error while saving order: %w", err)
 		}
 	}
+	//
+	//проверь заказ на существование
+	//ОТ ТОГО ЖЕ
+	//ПОЛЬЗОВОТЕЛЯ
+	//
 	if order.UserID == g.Auth.GetUserID(c.Request()) {
 		c.Response().Writer.WriteHeader(http.StatusAccepted)
 		return nil
@@ -259,7 +265,7 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 func (g *Gophermart) Router() *echo.Echo {
 
 	e := echo.New()
-	//e.Use(middleware.Logger())
+	e.Use(middleware.Logger())
 	e.POST("/api/user/register", g.RegistHandler)
 	e.POST("/api/user/login", g.AuthHandler)
 
