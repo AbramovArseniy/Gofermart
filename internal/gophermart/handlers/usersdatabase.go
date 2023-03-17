@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
@@ -45,7 +44,6 @@ func (d *DBStorage) RegisterNewUser(login string, password string) (User, error)
 		Login:        login,
 		HashPassword: password,
 	}
-	log.Printf("user before Insert: %+v", user)
 	query := `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	row := d.db.QueryRowContext(context.Background(), query, login, password)
 	if err := row.Scan(&user.ID); err != nil {
@@ -60,7 +58,6 @@ func (d *DBStorage) RegisterNewUser(login string, password string) (User, error)
 		}
 		return User{}, ErrScanData
 	}
-	log.Printf("user after Insert: %+v", user)
 
 	// // NEW VERSION
 	// tx, err := d.db.Begin()

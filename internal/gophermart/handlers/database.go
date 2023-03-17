@@ -490,7 +490,6 @@ func (d *DataBase) CheckUserData(login, hash string) bool {
 
 	defer checkUserDatastmt.Close()
 
-	log.Println(login, hash)
 	row := checkUserDatastmt.QueryRowContext(d.ctx, login, hash)
 	err = row.Scan(&exist)
 	if errors.Is(err, sql.ErrNoRows) {

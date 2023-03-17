@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"time"
 
@@ -135,7 +134,6 @@ func (a *AuthJWT) getTokenReqs(user User) (map[string]interface{}, error) {
 
 func (a *AuthJWT) GetUserID(r *http.Request) int {
 	_, reqs, _ := jwtauth.FromContext(r.Context())
-	log.Printf("reqs: %v", reqs)
 	userID, _ := reqs[UserIDReq].(float64)
 	return int(userID)
 }
