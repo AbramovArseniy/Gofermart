@@ -9,7 +9,6 @@ import (
 
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 )
 
 const (
@@ -252,7 +251,7 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 func (g *Gophermart) Router() *echo.Echo {
 
 	e := echo.New()
-	e.Use(middleware.Logger())
+	//e.Use(middleware.Logger())
 	e.POST("/api/user/register", g.RegistHandler)
 	e.POST("/api/user/login", g.AuthHandler)
 
