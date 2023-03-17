@@ -94,13 +94,14 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	}
 
 	log.Printf("orderer %d, curler %d", userID, g.Auth.GetUserID(c.Request().Header))
-	if userID == g.Auth.GetUserID(c.Request().Header) {
-		c.Response().Writer.WriteHeader(http.StatusOK)
-		return nil
-	} else {
+	if userID != g.Auth.GetUserID(c.Request().Header) {
+		err = fmt.Errorf("order already uploaded by another user")
 		http.Error(c.Response().Writer, "order already uploaded by another user", http.StatusConflict)
-		return nil
+		return err
 	}
+
+	http.Error(c.Response().Writer, "order already uploaded by you", http.StatusOK)
+	return fmt.Errorf("order already uploaded by you")
 }
 
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
