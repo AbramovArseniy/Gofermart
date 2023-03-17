@@ -160,7 +160,7 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "cannot marshal data to json", http.StatusInternalServerError)
 		return err
 	}
-
+	c.Response().Header().Set("Content-Type", "application/json")
 	_, err = c.Response().Writer.Write(body)
 	if err != nil {
 		log.Println("GetOrdersHandler: error while writing response body:", err)
@@ -275,13 +275,13 @@ func (g *Gophermart) GetBalanceHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "cannot marshal response json", http.StatusInternalServerError)
 		return fmt.Errorf("error while marshling response json: %w", err)
 	}
+	c.Response().Writer.Header().Add("Content-Type", "application/json")
 	_, err = c.Response().Writer.Write(response)
 	if err != nil {
 		log.Println("error while writing response:", err)
 		http.Error(c.Response().Writer, "cannot write response", http.StatusInternalServerError)
 		return fmt.Errorf("error while writing response: %w", err)
 	}
-	c.Response().Writer.Header().Add("Content-Type", "application/json")
 	c.Response().Writer.WriteHeader(http.StatusOK)
 	return nil
 }
