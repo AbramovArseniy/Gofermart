@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
 	echojwt "github.com/labstack/echo-jwt/v4"
@@ -20,6 +21,7 @@ const (
 
 func OrderNumIsRight(number string) bool {
 	checkNumber := checksum(number)
+	log.Println(checkNumber)
 	return checkNumber == 0
 }
 
@@ -57,7 +59,8 @@ func (c Client) DoRequest(number string) ([]byte, error) {
 func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
-		http.Error(c.Response().Writer, "cannot read request body", http.StatusInternalServerError)
+		errorr := fmt.Sprintf("cannot read request body %s", err)
+		http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while reading request body: %w", err)
 	}
 	orderNum := fmt.Sprintf("%x", body)
@@ -66,7 +69,8 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	userID, exists, err := g.Storage.GetOrderUserByNum(orderNum)
 	order.UserID = userID
 	if err != nil {
-		http.Error(c.Response().Writer, "cannot get user id by order number", http.StatusInternalServerError)
+		errorr := fmt.Sprintf("cannot get user id by order number %s", err)
+		http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while getting user id by order number: %w", err)
 	}
 	if !numIsRight {
@@ -76,7 +80,8 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	if !exists {
 		err = g.Storage.SaveOrder(g.Auth.GetUserID(c.Request()), &order)
 		if err != nil {
-			http.Error(c.Response().Writer, "cannot save order", http.StatusInternalServerError)
+			errorr := fmt.Sprintf("cannot save order %s", err)
+			http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 			return fmt.Errorf("error while saving order: %w", err)
 		}
 	}

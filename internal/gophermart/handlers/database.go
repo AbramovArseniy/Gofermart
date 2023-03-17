@@ -94,8 +94,7 @@ func (d *DataBase) Migrate() {
 		user_id INT NOT NULL,
 		order_status VARCHAR(16) NOT NULL,
 		accrual BIGINT,
-		date_time TIMESTAMP NOT NULL,
-		CONSTRAINT n_user FOREIGN KEY(user_id) REFERENCES users (id)
+		date_time TIMESTAMP NOT NULL
 	);`)
 	if err != nil {
 		log.Printf("error during create orders %s", err)
@@ -106,8 +105,7 @@ func (d *DataBase) Migrate() {
 		user_id INT NOT NULL,
 		order_num VARCHAR(255) NOT NULL,
 		accrual BIGINT NOT NULL,
-		created_at TIMESTAMP NOT NULL,
-		CONSTRAINT n_user FOREIGN KEY(user_id) REFERENCES users (id)
+		created_at TIMESTAMP NOT NULL
 	);`)
 	if err != nil {
 		log.Printf("error during create orders %s", err)
