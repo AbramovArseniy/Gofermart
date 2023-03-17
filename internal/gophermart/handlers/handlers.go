@@ -64,36 +64,39 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while reading request body: %w", err)
 	}
+
 	orderNum := string(body)
-	order := Order{}
 	numIsRight := OrderNumIsRight(orderNum)
 	userID, exists, err := g.Storage.GetOrderUserByNum(orderNum)
-	order.UserID = userID
 	if err != nil {
 		errorr := fmt.Sprintf("cannot get user id by order number %s", err)
 		http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 		return fmt.Errorf("PostOrderHandler: error while getting user id by order number: %w", err)
 	}
-	log.Println(numIsRight)
+	log.Printf("is order exist? %t", exists)
 	if !numIsRight {
 		c.Response().Writer.WriteHeader(http.StatusUnprocessableEntity)
 		return nil
 	}
+	order := Order{
+		UserID: g.Auth.GetUserID(c.Request().Header),
+		Number: orderNum,
+	}
 	if !exists {
-		err = g.Storage.SaveOrder(g.Auth.GetUserID(c.Request()), &order)
+		log.Printf("order %+v", &order)
+		err = g.Storage.SaveOrder(&order)
 		if err != nil {
 			errorr := fmt.Sprintf("cannot save order %s", err)
 			http.Error(c.Response().Writer, errorr, http.StatusInternalServerError)
 			return fmt.Errorf("error while saving order: %w", err)
 		}
-	}
-	//
-	//проверь заказ на существование
-	//ОТ ТОГО ЖЕ
-	//ПОЛЬЗОВОТЕЛЯ
-	//
-	if order.UserID == g.Auth.GetUserID(c.Request()) {
 		c.Response().Writer.WriteHeader(http.StatusAccepted)
+		return err
+	}
+
+	log.Printf("orderer %d, curler %d", order.UserID, g.Auth.GetUserID(c.Request().Header))
+	if userID == g.Auth.GetUserID(c.Request().Header) {
+		c.Response().Writer.WriteHeader(http.StatusOK)
 		return nil
 	} else {
 		http.Error(c.Response().Writer, "order already uploaded by another user", http.StatusConflict)
@@ -103,9 +106,9 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 
 func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	c.Response().Header().Set("Content-Type", "application/json")
-	authuserID := g.Auth.GetUserID(c.Request())
-	log.Printf("authuserID: %+v", authuserID)
-	orders, exist, err := g.Storage.GetOrdersByUser(authuserID)
+	userid := g.Auth.GetUserID(c.Request().Header)
+	log.Println(userid)
+	orders, exist, err := g.Storage.GetOrdersByUser(userid)
 	if err != nil {
 		c.Response().Writer.WriteHeader(http.StatusInternalServerError)
 		return fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
@@ -119,6 +122,7 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 		c.Response().Writer.WriteHeader(http.StatusInternalServerError)
 		return err
 	}
+
 	_, err = c.Response().Writer.Write(body)
 	if err != nil {
 		c.Response().Writer.WriteHeader(http.StatusInternalServerError)
@@ -142,7 +146,7 @@ func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "wrong format of order number", http.StatusUnprocessableEntity)
 		return nil
 	}
-	balance, _, err := g.Storage.GetBalance(g.Auth.GetUserID(c.Request()))
+	balance, _, err := g.Storage.GetBalance(g.Auth.GetUserID(c.Request().Header))
 	if err != nil {
 		http.Error(c.Response().Writer, err.Error(), http.StatusInternalServerError)
 		return fmt.Errorf("error while counting balance: %w", err)
@@ -151,7 +155,7 @@ func (g *Gophermart) PostWithdrawalHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "not enough accrual on balance", http.StatusPaymentRequired)
 		return nil
 	}
-	g.Storage.SaveWithdrawal(w, g.Auth.GetUserID(c.Request()))
+	g.Storage.SaveWithdrawal(w, g.Auth.GetUserID(c.Request().Header))
 	c.Response().Writer.WriteHeader(http.StatusOK)
 	return nil
 }
@@ -189,7 +193,7 @@ func (g *Gophermart) GetBalanceHandler(c echo.Context) error {
 	var b Balance
 	var err error
 	c.Response().Writer.Header().Add("Content-Type", "application/json")
-	b.Balance, b.Withdrawn, err = g.Storage.GetBalance(g.Auth.GetUserID(c.Request()))
+	b.Balance, b.Withdrawn, err = g.Storage.GetBalance(g.Auth.GetUserID(c.Request().Header))
 	if err != nil {
 		http.Error(c.Response().Writer, err.Error(), http.StatusInternalServerError)
 		return fmt.Errorf("error while counting balance: %w", err)
@@ -239,7 +243,7 @@ func (g *Gophermart) AuthHandler(c echo.Context) error {
 
 func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 	c.Response().Writer.Header().Add("Content-Type", "application/json")
-	w, exist, err := g.Storage.GetWithdrawalsByUser(g.Auth.GetUserID(c.Request()))
+	w, exist, err := g.Storage.GetWithdrawalsByUser(g.Auth.GetUserID(c.Request().Header))
 	if err != nil {
 		http.Error(c.Response().Writer, "cannot get user's withdrawals", http.StatusInternalServerError)
 		return fmt.Errorf("error while getting user's withdrawals: %w", err)
@@ -263,13 +267,14 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) Router() *echo.Echo {
-
 	e := echo.New()
+
 	e.Use(middleware.Logger())
 	e.POST("/api/user/register", g.RegistHandler)
 	e.POST("/api/user/login", g.AuthHandler)
 
-	logged := e.Group("/api/user", echojwt.JWT([]byte(g.secret)))
+	logged := e.Group("/api/user", echojwt.WithConfig(echojwt.Config{SigningKey: []byte(g.secret)}))
+
 	logged.POST("/orders", g.PostOrderHandler)
 	logged.GET("/orders", g.GetOrdersHandler)
 	logged.POST("/balance/withdraw", g.PostWithdrawalHandler)

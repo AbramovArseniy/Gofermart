@@ -7,7 +7,7 @@ import (
 )
 
 type Storage interface {
-	SaveOrder(authUserID int, order *Order) error
+	SaveOrder(order *Order) error
 	SaveWithdrawal(withdrawal Withdrawal, authUserID int) error
 	GetOrderUserByNum(orderNum string) (userID int, exists bool, err error)
 	GetOrdersByUser(authUserID int) (orders []Order, exist bool, err error)

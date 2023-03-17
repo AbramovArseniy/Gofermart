@@ -20,7 +20,7 @@ import (
 var (
 	selectOrdersByUserStmt string = `SELECT (order_num, order_status, accrual, date_time) FROM orders WHERE user_id=$1`
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
-	insertOrderStmt                   string = `INSERT INTO orders (user_id, order_num, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
+	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
 	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
 	updateOrderStatusToProcessedStmt  string = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
@@ -108,7 +108,7 @@ func (d *DataBase) Migrate() {
 		created_at TIMESTAMP NOT NULL
 	);`)
 	if err != nil {
-		log.Printf("error during create orders %s", err)
+		log.Printf("error during create withdrawals %s", err)
 	}
 }
 
@@ -373,26 +373,30 @@ func (d *DataBase) CheckOrders(accrualSysClient Client) {
 // 	return user, err
 // }
 
-func (d *DataBase) SaveOrder(authUserID int, order *Order) error {
-
-	tx, err := d.db.BeginTx(d.ctx, nil)
+func (d *DataBase) SaveOrder(order *Order) error {
+	_, err := d.db.ExecContext(d.ctx, `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`,
+		order.Number, order.UserID, order.Status, order.Accrual, order.UploadedAt)
 	if err != nil {
 		return err
 	}
+	// tx, err := d.db.BeginTx(d.ctx, nil)
+	// if err != nil {
+	// 	return err
+	// }
 
-	defer tx.Rollback()
+	// defer tx.Rollback()
 
-	insertOrderStmt, err := tx.PrepareContext(d.ctx, insertOrderStmt)
-	if err != nil {
-		return err
-	}
+	// insertOrderStmt, err := tx.PrepareContext(d.ctx, insertOrderStmt)
+	// if err != nil {
+	// 	return err
+	// }
 
-	defer insertOrderStmt.Close()
+	// defer insertOrderStmt.Close()
 
-	_, err = insertOrderStmt.ExecContext(d.ctx, authUserID, order.Number, order.Status, order.Accrual, order.UploadedAt)
-	if err != nil {
-		return err
-	}
+	// _, err = insertOrderStmt.ExecContext(d.ctx, order.Number, order.UserID, order.Status, order.Accrual, order.UploadedAt)
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -417,14 +421,12 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (userID int, exists bool, 
 	row := selectUserIDByOrderNumStmt.QueryRowContext(d.ctx, orderNum)
 
 	err = row.Scan(&userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return userID, exists, nil
+	if !errors.Is(err, sql.ErrNoRows) {
+		exists = true
 	}
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return userID, exists, err
 	}
-
-	exists = true
 
 	return userID, exists, nil
 }

@@ -26,7 +26,7 @@ func main() {
 
 	database.Migrate()
 
-	auth := handlers.NewAuth(userStore, cfg.JWTSecret)
+	auth := handlers.NewAuth(userStore, cfg.JWTSecret, context)
 	g := handlers.NewGophermart(cfg.Accrual, cfg.JWTSecret, database, auth)
 	defer g.Storage.Close()
 	r := g.Router()

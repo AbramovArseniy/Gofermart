@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"errors"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/jwtauth"
@@ -52,20 +55,21 @@ type Authorization interface {
 	GenerateToken(user User) (string, error)
 	RegisterUser(userdata UserData) (User, error)
 	LoginUser(userdata UserData) (User, error)
-	GetUserID(r *http.Request) int
-	AuthMiddleware() func(h http.Handler) http.Handler
+	GetUserID(h http.Header) int
 }
 
 type AuthJWT struct {
 	UserStorage UserDB
 	AuthToken   *jwtauth.JWTAuth
+	context     context.Context
 }
 
-func NewAuth(store UserDB, secret string) *AuthJWT {
+func NewAuth(store UserDB, secret string, context context.Context) *AuthJWT {
 	jwtAuth := jwtauth.New("HS256", []byte(secret), nil)
 	return &AuthJWT{
 		AuthToken:   jwtAuth,
 		UserStorage: store,
+		context:     context,
 	}
 }
 
@@ -129,19 +133,35 @@ func (a *AuthJWT) getTokenReqs(user User) (map[string]interface{}, error) {
 		return nil, errors.New("user id is required")
 	}
 	reqs[UserIDReq] = user.ID
+	log.Println(user.ID)
 	return reqs, nil
 }
 
-func (a *AuthJWT) GetUserID(r *http.Request) int {
-	_, reqs, _ := jwtauth.FromContext(r.Context())
-	userID, _ := reqs[UserIDReq].(float64)
+func (a *AuthJWT) GetUserID(header http.Header) int {
+	tokenString := TokenFromHeader(header)
+	token, err := a.AuthToken.Decode(tokenString)
+	if err != nil {
+		log.Println(err)
+	}
+
+	var claims map[string]interface{}
+
+	if token != nil {
+		claims, err = token.AsMap(context.Background())
+		if err != nil {
+			log.Println(err)
+		}
+	} else {
+		claims = map[string]interface{}{}
+	}
+	userID, _ := claims[UserIDReq].(float64)
 	return int(userID)
 }
 
-func (a *AuthJWT) AuthMiddleware() func(h http.Handler) http.Handler {
-	verifier := jwtauth.Verifier(a.AuthToken)
-	authenticator := jwtauth.Authenticator
-	return func(h http.Handler) http.Handler {
-		return verifier(authenticator(h))
+func TokenFromHeader(header http.Header) string {
+	bearer := header.Get("Authorization")
+	if len(bearer) > 7 && strings.ToUpper(bearer[0:6]) == "BEARER" {
+		return bearer[7:]
 	}
+	return ""
 }
