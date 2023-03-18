@@ -514,3 +514,5 @@ curl -i -X POST http://127.0.0.1:8080/api/user/orders -H "Authorization: Bearer 
 curl -i -X POST http://127.0.0.1:8080/api/user/orders -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NzkxMjk4NTUsImlhdCI6MTY3OTA5Mzg1NSwidXNlcl9pZCI6NH0.FqV_qgkKlbn8xG1nIra6d8VSNuESKLpOd9MnImJdXFE" -H "Content-Type: text/plain" -d "66830464"
 
 gophermart_orders_test.go:146:
+
+curl -i -X POST http://127.0.0.1:8080/api/user/orders -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NzkxOTU2NjQsImlhdCI6MTY3OTE1OTY2NCwibG9naW4iOiJwb29wb29vb29xIiwidXNlcl9pZCI6MX0.7kzzlpzkqw4dsFvBXVFVM1aifTq3cHAKeuZTUGqNrAE" -H "Content-Type: text/plain" -d "123234114" 

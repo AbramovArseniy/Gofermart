@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
@@ -114,13 +113,14 @@ func (a *AuthJWT) getTokenReqs(user types.User) (map[string]interface{}, error) 
 	if user.Login == "" {
 		return nil, errors.New("user login is required")
 	}
-	reqs[UserIDReq] = user.Login
+	reqs[UserIDReq] = user.ID
+	reqs[UserLoginReq] = user.Login
 
 	return reqs, nil
 }
 
 func (a *AuthJWT) GetUserID(r *http.Request) int {
-	token := a.verify(r, TokenFromCookie, TokenFromHeader)
+	token := a.verify(r, jwtauth.TokenFromCookie, jwtauth.TokenFromHeader)
 
 	var err error
 	var claims map[string]interface{}
@@ -139,34 +139,34 @@ func (a *AuthJWT) GetUserID(r *http.Request) int {
 }
 
 func (a *AuthJWT) GetUserLogin(r *http.Request) string {
-	token := a.verify(r, TokenFromCookie, TokenFromHeader)
+	token := a.verify(r, jwtauth.TokenFromCookie, jwtauth.TokenFromHeader)
 
-	var userID string
+	var login string
 
-	buserID, exist := token.Get(UserIDReq)
+	buserID, exist := token.Get(UserLoginReq)
 	if exist {
-		userID, _ = buserID.(string)
+		login, _ = buserID.(string)
 	}
-	return userID
+	return login
 }
 
-func TokenFromHeader(r *http.Request) string {
-	bearer := r.Header.Get("Authorization")
-	if len(bearer) > 7 && strings.ToUpper(bearer[0:6]) == "BEARER" {
-		return bearer[7:]
-	}
+// func TokenFromHeader(r *http.Request) string {
+// 	bearer := r.Header.Get("Authorization")
+// 	if len(bearer) > 7 && strings.ToUpper(bearer[0:6]) == "BEARER" {
+// 		return bearer[7:]
+// 	}
 
-	return ""
-}
+// 	return ""
+// }
 
-func TokenFromCookie(r *http.Request) string {
-	cookie, err := r.Cookie("JWT")
-	if err != nil {
-		return ""
-	}
+// func TokenFromCookie(r *http.Request) string {
+// 	cookie, err := r.Cookie("JWT")
+// 	if err != nil {
+// 		return ""
+// 	}
 
-	return cookie.Value
-}
+// 	return cookie.Value
+// }
 
 func (a *AuthJWT) verify(r *http.Request, findTokenFns ...func(r *http.Request) string) jwx.Token {
 	token, err := jwtauth.VerifyRequest(a.AuthToken, r, findTokenFns...)

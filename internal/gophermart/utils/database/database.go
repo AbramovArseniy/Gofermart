@@ -31,7 +31,7 @@ var (
 	ErrAlarm        = errors.New("error tx.BeginTx alarm")
 	ErrAlarm2       = errors.New("error tx.PrepareContext alarm")
 
-	selectOrdersByUserStmt string = `SELECT * FROM orders WHERE user_id=$1`
+	selectOrdersByUserStmt string = `SELECT * FROM orders WHERE login=$1`
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
 	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
 	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
@@ -40,13 +40,13 @@ var (
 	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
 	selectUserStmt                    string = `SELECT id, login, password_hash FROM users WHERE login = $1`
 	selectNotProcessedOrdersStmt      string = `SELECT (order_num) FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
-	selectAccraulBalanceOrdersStmt    string = `SELECT SUM(accrual) FROM orders where order_status = 'PROCESSED' and user_id = $1`
+	selectAccraulBalanceOrdersStmt    string = `SELECT SUM(accrual) FROM orders where order_status = 'PROCESSED' and login = $1`
 	selectAccrualWithdrawnStmt        string = `SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1`
 	insertWirdrawalStmt               string = "INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
 	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`
 	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
-	selectUserIDByOrderNumStmt string        = `SELECT user_id FROM orders WHERE EXISTS(SELECT user_id FROM orders WHERE order_num = $1);`
+	selectUserIDByOrderNumStmt string        = `SELECT login FROM orders WHERE EXISTS(SELECT login FROM orders WHERE order_num = $1);`
 	checkUserDatastmt          string        = `SELECT EXISTS(SELECT login, password_hash FROM users WHERE login = $1 AND password_hash = $2)`
 	checkOrderInterval         time.Duration = 5 * time.Second
 )
@@ -105,7 +105,7 @@ func (d *DataBase) Migrate() {
 
 	_, err = d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS orders (
 		order_num VARCHAR(255) PRIMARY KEY,
-		user_id INT NOT NULL,
+		login VARCHAR(16) NOT NULL,
 		order_status VARCHAR(16) NOT NULL,
 		accrual BIGINT,
 		date_time TIMESTAMP NOT NULL
@@ -383,8 +383,8 @@ func (d *DataBase) CheckOrders(body []byte) {
 // }
 
 func (d *DataBase) SaveOrder(order *types.Order) error {
-	_, err := d.db.ExecContext(d.ctx, `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`,
-		order.Number, order.UserID, order.Status, order.Accrual, order.UploadedAt)
+	_, err := d.db.ExecContext(d.ctx, `INSERT INTO orders (order_num, login, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`,
+		order.Number, order.User, order.Status, order.Accrual, time.Now())
 	if err != nil {
 		return err
 	}
@@ -410,34 +410,34 @@ func (d *DataBase) SaveOrder(order *types.Order) error {
 	return nil
 }
 
-func (d *DataBase) GetOrderUserByNum(orderNum string) (userID int, exists bool, err error) {
+func (d *DataBase) GetOrderUserByNum(orderNum string) (user string, exists bool, err error) {
 	exists = false
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
-		return userID, exists, err
+		return user, exists, err
 	}
 
 	defer tx.Rollback()
 
 	selectUserIDByOrderNumStmt, err := tx.PrepareContext(d.ctx, selectUserIDByOrderNumStmt)
 	if err != nil {
-		return userID, exists, err
+		return user, exists, err
 	}
 
 	defer selectUserIDByOrderNumStmt.Close()
 
 	row := selectUserIDByOrderNumStmt.QueryRowContext(d.ctx, orderNum)
 
-	err = row.Scan(&userID)
+	err = row.Scan(&user)
 	if !errors.Is(err, sql.ErrNoRows) {
 		exists = true
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return userID, exists, err
+		return user, exists, err
 	}
 
-	return userID, exists, nil
+	return user, exists, nil
 }
 
 func (d *DataBase) GetOrdersByUser(authUserID int) (orders []types.Order, exist bool, err error) {
@@ -461,7 +461,7 @@ func (d *DataBase) GetOrdersByUser(authUserID int) (orders []types.Order, exist 
 	}
 	for rows.Next() {
 		var order types.Order
-		err = rows.Scan(&order.Number, &order.UserID, &order.Status, &order.Accrual, &order.UploadedAt)
+		err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt)
 		if err != nil {
 			return nil, false, fmt.Errorf("error while scanning rows from database: %w", err)
 		}
@@ -510,7 +510,6 @@ func (d *DataBase) CheckUserData(login, hash string) bool {
 		log.Println(err)
 		return exist
 	}
-	log.Println(exist)
 	return exist
 }
 

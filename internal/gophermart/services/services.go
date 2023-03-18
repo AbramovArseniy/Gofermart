@@ -75,7 +75,7 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 
 	orderNum := string(body)
 	numIsRight := luhnchecker.OrderNumIsRight(orderNum)
-	userID, exists, err := storage.GetOrderUserByNum(orderNum)
+	user, exists, err := storage.GetOrderUserByNum(orderNum)
 	if err != nil {
 		err := fmt.Errorf("cannot get user id by order number %s", err)
 		return http.StatusInternalServerError, err
@@ -86,7 +86,7 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 		return http.StatusUnprocessableEntity, err
 	}
 	order := types.Order{
-		UserID: auth.GetUserID(r),
+		User:   auth.GetUserLogin(r),
 		Number: orderNum,
 		Status: "NEW",
 	}
@@ -98,8 +98,8 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 		}
 		return http.StatusAccepted, err
 	}
-	log.Printf("id in order %d, id in req %d", userID, auth.GetUserID(r))
-	if userID != auth.GetUserID(r) {
+	log.Printf("id in order %s, id in req %s", user, auth.GetUserLogin(r))
+	if user != auth.GetUserLogin(r) {
 		err = fmt.Errorf("order already uploaded by another user")
 
 		return http.StatusConflict, err

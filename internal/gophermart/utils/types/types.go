@@ -18,7 +18,7 @@ type Authorization interface {
 type Storage interface {
 	SaveOrder(order *Order) error
 	SaveWithdrawal(withdrawal Withdrawal, authUserID int) error
-	GetOrderUserByNum(orderNum string) (userID int, exists bool, err error)
+	GetOrderUserByNum(orderNum string) (user string, exists bool, err error)
 	GetOrdersByUser(authUserID int) (orders []Order, exist bool, err error)
 	GetBalance(authUserID int) (balance float64, withdrawn float64, err error)
 	// GetUserData(login string) (User, error)
@@ -64,7 +64,7 @@ type Balance struct {
 	Withdrawn float64 `json:"withdrawn"`
 }
 type Order struct {
-	UserID     int       `json:"-"`
+	User       string    `json:"user"`
 	Number     string    `json:"number"`
 	Status     string    `json:"status"`
 	Accrual    int       `json:"accrual,omitempty"`

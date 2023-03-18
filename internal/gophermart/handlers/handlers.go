@@ -76,7 +76,6 @@ func (g *Gophermart) RegistHandler(c echo.Context) error {
 
 func (g *Gophermart) AuthHandler(c echo.Context) error {
 	httpStatus, token, err := services.AuthService(c.Request(), g.Storage, g.Auth)
-
 	c.Response().Header().Set("Authorization", token)
 	c.Response().Writer.WriteHeader(httpStatus)
 	return err
@@ -114,8 +113,8 @@ func (g *Gophermart) GetBalanceHandler(c echo.Context) error {
 
 	httpStatus, response, err := services.GetBalanceService(c.Request(), g.Storage, g.Auth)
 
-	c.Response().Writer.Write(response)
 	c.Response().Writer.WriteHeader(httpStatus)
+	c.Response().Writer.Write(response)
 
 	return err
 }
@@ -125,8 +124,9 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 
 	httpStatus, response, err := services.GetWithdrawalsService(c.Request(), g.Storage, g.Auth)
 
-	c.Response().Write(response)
 	c.Response().Writer.WriteHeader(httpStatus)
+	c.Response().Write(response)
+
 	return err
 }
 
