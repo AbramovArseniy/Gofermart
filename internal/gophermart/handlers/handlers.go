@@ -95,8 +95,8 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 
 	httpStatus, body, err := services.GetOrderService(c.Request(), g.Storage, g.Auth)
 
-	c.Response().Writer.Write(body)
 	c.Response().Writer.WriteHeader(httpStatus)
+	c.Response().Writer.Write(body)
 
 	return err
 }

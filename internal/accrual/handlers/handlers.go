@@ -43,8 +43,8 @@ func (h handler) ordersChecker(c echo.Context) error {
 		return err
 	}
 	if orderinfo != nil {
-		c.Response().Writer.Write(orderinfo)
 		c.Response().Writer.WriteHeader(status)
+		c.Response().Writer.Write(orderinfo)
 		err := fmt.Errorf("order status invalid")
 		return err
 	}
