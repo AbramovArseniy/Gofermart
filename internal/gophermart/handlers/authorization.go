@@ -108,6 +108,7 @@ func (a *AuthJWT) LoginUser(userdata UserData) (User, error) {
 	if err = bcrypt.CompareHashAndPassword([]byte(user.HashPassword), []byte(userdata.Password)); err != nil {
 		return User{}, ErrInvalidData
 	}
+
 	return user, nil
 }
 
@@ -120,6 +121,7 @@ func (a *AuthJWT) GenerateToken(user User) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return tokenString, nil
 }
 
@@ -135,6 +137,7 @@ func (a *AuthJWT) getTokenReqs(user User) (map[string]interface{}, error) {
 		return nil, errors.New("user id is required")
 	}
 	reqs[UserIDReq] = user.ID
+
 	return reqs, nil
 }
 
@@ -153,6 +156,7 @@ func (a *AuthJWT) GetUserID(r *http.Request) int {
 		claims = map[string]interface{}{}
 	}
 	userID, _ := claims[UserIDReq].(float64)
+
 	return int(userID)
 }
 
@@ -161,24 +165,24 @@ func TokenFromHeader(r *http.Request) string {
 	if len(bearer) > 7 && strings.ToUpper(bearer[0:6]) == "BEARER" {
 		return bearer[7:]
 	}
+
 	return ""
 }
 
 func TokenFromCookie(r *http.Request) string {
-	cookie, err := r.Cookie("jwt")
+	cookie, err := r.Cookie("")
 	if err != nil {
 		return ""
 	}
+
 	return cookie.Value
 }
 
 func (a *AuthJWT) verify(r *http.Request, findTokenFns ...func(r *http.Request) string) jwx.Token {
-
 	token, err := jwtauth.VerifyRequest(a.AuthToken, r, findTokenFns...)
 	if err != nil {
 		log.Println("ошибка в verify", err)
 	}
 
 	return token
-
 }
