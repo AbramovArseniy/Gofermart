@@ -192,16 +192,19 @@ func (g *Gophermart) GetBalanceHandler(c echo.Context) error {
 	c.Response().Writer.Header().Add("Content-Type", "application/json")
 	b.Balance, b.Withdrawn, err = g.Storage.GetBalance(g.Auth.GetUserID(c.Request()))
 	if err != nil {
+		log.Println("error while counting balance:", err)
 		http.Error(c.Response().Writer, err.Error(), http.StatusInternalServerError)
 		return fmt.Errorf("error while counting balance: %w", err)
 	}
 	response, err := json.Marshal(b)
 	if err != nil {
+		log.Println("error while marshalling response json:", err)
 		http.Error(c.Response().Writer, "cannot marshal response json", http.StatusInternalServerError)
-		return fmt.Errorf("error while marshling response json: %w", err)
+		return fmt.Errorf("error while marshalling response json: %w", err)
 	}
 	_, err = c.Response().Writer.Write(response)
 	if err != nil {
+		log.Println("error while marshalling response json:", err)
 		http.Error(c.Response().Writer, "cannot write response", http.StatusInternalServerError)
 		return fmt.Errorf("error while writing response: %w", err)
 	}

@@ -26,8 +26,8 @@ var (
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
 	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
 	selectNotProcessedOrdersStmt      string = `SELECT (order_num) FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
-	selectAccraulBalanceOrdersStmt    string = `SELECT SUM(accrual) FROM orders where order_status = 'PROCESSED' and user_id = $1`
-	selectAccrualWithdrawnStmt        string = `SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1`
+	selectAccrualBalanceOrdersStmt    string = `SELECT COALESCE(SUM(accrual), 0) FROM orders where order_status = 'PROCESSED' and user_id = $1`
+	selectAccrualWithdrawnStmt        string = `SELECT COALESCE(SUM(accrual), 0) FROM withdrawals WHERE user_id = $1`
 	insertWirdrawalStmt               string = "INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
 	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`
 	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
@@ -183,14 +183,14 @@ func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
 
 	defer tx.Rollback()
 
-	selectAccraulBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccraulBalanceOrdersStmt)
+	selectAccrualBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccrualBalanceOrdersStmt)
 	if err != nil {
-		return order, withdrawn, err
+		return order, withdrawn, fmt.Errorf("cannot prepare selectAccrualBalanceOrdersStmt: %w", err)
 	}
 
-	defer selectAccraulBalanceOrdersStmt.Close()
+	defer selectAccrualBalanceOrdersStmt.Close()
 
-	err = selectAccraulBalanceOrdersStmt.QueryRow(authUserID).Scan(&order)
+	err = selectAccrualBalanceOrdersStmt.QueryRow(authUserID).Scan(&order)
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
 	}
