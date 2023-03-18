@@ -10,7 +10,6 @@ import (
 
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 )
 
 const (
@@ -57,8 +56,6 @@ func (c Client) DoRequest(number string) ([]byte, error) {
 }
 
 func (g *Gophermart) PostOrderHandler(c echo.Context) error {
-	log.Println(c.Request().Cookie("Set-Cookie"))
-	log.Println(c.Request().Header.Get("Authorization"))
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		errorr := fmt.Sprintf("cannot read request body %s", err)
@@ -84,7 +81,6 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		Status: "NEW",
 	}
 	if !exists {
-		log.Println("user id while saving:", order.UserID)
 		err = g.Storage.SaveOrder(&order)
 		if err != nil {
 			errorr := fmt.Sprintf("cannot save order %s", err)
@@ -270,9 +266,9 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 func (g *Gophermart) Router() *echo.Echo {
 	e := echo.New()
 
-	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-		Format: "time=${time_rfc3339}, method=${method}, uri=${uri}, status=${status}, error=${error}\n",
-	}))
+	//e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+	//	Format: "time=${time_rfc3339}, method=${method}, uri=${uri}, status=${status}, error=${error}\n",
+	//}))
 	e.POST("/api/user/register", g.RegistHandler)
 	e.POST("/api/user/login", g.AuthHandler)
 
