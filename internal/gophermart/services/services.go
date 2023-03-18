@@ -108,7 +108,7 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 }
 
 func GetOrderService(r *http.Request, storage types.Storage, auth types.Authorization) (int, []byte, error) {
-	userid := auth.GetUserID(r)
+	userid := auth.GetUserLogin(r)
 	orders, exist, err := storage.GetOrdersByUser(userid)
 	if err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)

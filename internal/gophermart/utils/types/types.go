@@ -19,7 +19,7 @@ type Storage interface {
 	SaveOrder(order *Order) error
 	SaveWithdrawal(withdrawal Withdrawal, authUserID int) error
 	GetOrderUserByNum(orderNum string) (user string, exists bool, err error)
-	GetOrdersByUser(authUserID int) (orders []Order, exist bool, err error)
+	GetOrdersByUser(authUserID string) (orders []Order, exist bool, err error)
 	GetBalance(authUserID int) (balance float64, withdrawn float64, err error)
 	// GetUserData(login string) (User, error)
 	// RegisterNewUser(login string, password string) (User, error)

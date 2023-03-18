@@ -440,7 +440,7 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (user string, exists bool,
 	return user, exists, nil
 }
 
-func (d *DataBase) GetOrdersByUser(authUserID int) (orders []types.Order, exist bool, err error) {
+func (d *DataBase) GetOrdersByUser(authUserID string) (orders []types.Order, exist bool, err error) {
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
 		return
