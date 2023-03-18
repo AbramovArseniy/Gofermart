@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -150,20 +151,27 @@ func (a *AuthJWT) getTokenReqs(user User) (map[string]interface{}, error) {
 func (a *AuthJWT) GetUserID(r *http.Request) int {
 	token := a.verify(r, TokenFromCookie, TokenFromHeader)
 
-	var err error
-	var claims map[string]interface{}
-
+	// var err error
+	// var claims map[string]interface{}
+	var tokenID string
 	if token != nil {
-		claims, err = token.AsMap(context.Background())
-		if err != nil {
-			log.Println(err)
-		}
-	} else {
-		claims = map[string]interface{}{}
+		// 	claims, err = token.AsMap(context.Background())
+		// 	if err != nil {
+		// 		log.Println(err)
+		// 	}
+		// } else {
+		// 	claims = map[string]interface{}{}
+		// }
+		// userID, _ := claims[UserIDReq].(float64)
+		tokenID = token.JwtID()
 	}
-	userID, _ := claims[UserIDReq].(float64)
 
-	return int(userID)
+	userID, err := strconv.Atoi(tokenID)
+	if err != nil {
+		log.Println(err)
+		return userID
+	}
+	return userID
 }
 
 func TokenFromHeader(r *http.Request) string {

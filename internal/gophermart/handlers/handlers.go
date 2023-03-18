@@ -95,7 +95,7 @@ func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 		return err
 	}
 
-	log.Printf("orderer %d, curler %d", userID, g.Auth.GetUserID(c.Request()))
+	log.Printf("id in order %d, id in req %d", userID, g.Auth.GetUserID(c.Request()))
 	if userID != g.Auth.GetUserID(c.Request()) {
 		err = fmt.Errorf("order already uploaded by another user")
 		http.Error(c.Response().Writer, "order already uploaded by another user", http.StatusConflict)
