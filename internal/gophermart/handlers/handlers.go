@@ -57,6 +57,7 @@ func (c Client) DoRequest(number string) ([]byte, error) {
 }
 
 func (g *Gophermart) PostOrderHandler(c echo.Context) error {
+	log.Println(c.Request().Cookies())
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		errorr := fmt.Sprintf("cannot read request body %s", err)
@@ -240,7 +241,6 @@ func (g *Gophermart) AuthHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
-	log.Println(c.Request().Cookies())
 	c.Response().Writer.Header().Add("Content-Type", "application/json")
 	w, exist, err := g.Storage.GetWithdrawalsByUser(g.Auth.GetUserID(c.Request()))
 	if err != nil {
