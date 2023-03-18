@@ -58,6 +58,7 @@ func (c Client) DoRequest(number string) ([]byte, error) {
 
 func (g *Gophermart) PostOrderHandler(c echo.Context) error {
 	log.Println(c.Request().Cookies())
+	log.Println(c.Request().Header.Get("Authorization"))
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
 		errorr := fmt.Sprintf("cannot read request body %s", err)
