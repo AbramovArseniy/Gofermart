@@ -57,7 +57,7 @@ func (c Client) DoRequest(number string) ([]byte, error) {
 }
 
 func (g *Gophermart) PostOrderHandler(c echo.Context) error {
-	log.Println(c.Request().Cookies())
+	log.Println(c.Request().Cookie("Set-Cookie"))
 	log.Println(c.Request().Header.Get("Authorization"))
 	body, err := io.ReadAll(c.Request().Body)
 	if err != nil {
@@ -179,11 +179,12 @@ func (g *Gophermart) RegistHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "RegistHandler: invalid login or password", http.StatusUnauthorized)
 		return nil
 	}
-	token, err := g.Auth.GenerateToken(user)
+	token, cookie, err := g.Auth.GenerateToken(user)
 	if err != nil {
 		http.Error(c.Response().Writer, "RegistHandler: can't generate token", http.StatusInternalServerError)
 		return nil
 	}
+	c.SetCookie(&cookie)
 	c.Response().Header().Set("Authorization", "Bearer "+token)
 	c.Response().Writer.WriteHeader(http.StatusOK)
 	return nil
@@ -231,7 +232,7 @@ func (g *Gophermart) AuthHandler(c echo.Context) error {
 		http.Error(c.Response().Writer, "AuthHandler: invalid login or password", http.StatusUnauthorized)
 		return nil
 	}
-	token, err := g.Auth.GenerateToken(user)
+	token, _, err := g.Auth.GenerateToken(user)
 	if err != nil {
 		http.Error(c.Response().Writer, "AuthHandler: can't generate token", http.StatusInternalServerError)
 		return nil

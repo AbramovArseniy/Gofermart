@@ -53,7 +53,7 @@ type UserDB interface {
 const UserIDReq = "user_id"
 
 type Authorization interface {
-	GenerateToken(user User) (string, error)
+	GenerateToken(user User) (string, http.Cookie, error)
 	RegisterUser(userdata UserData) (User, error)
 	LoginUser(userdata UserData) (User, error)
 	GetUserID(r *http.Request) int
@@ -112,17 +112,23 @@ func (a *AuthJWT) LoginUser(userdata UserData) (User, error) {
 	return user, nil
 }
 
-func (a *AuthJWT) GenerateToken(user User) (string, error) {
+func (a *AuthJWT) GenerateToken(user User) (string, http.Cookie, error) {
+	var cookie http.Cookie
 	reqs, err := a.getTokenReqs(user)
 	if err != nil {
-		return "", err
+		return "", cookie, err
 	}
-	_, tokenString, err := a.AuthToken.Encode(reqs)
+	token, tokenString, err := a.AuthToken.Encode(reqs)
 	if err != nil {
-		return "", err
+		return "", cookie, err
 	}
 
-	return tokenString, nil
+	cookie = http.Cookie{
+		Name:    token.JwtID(),
+		Value:   token.Subject(),
+		Expires: token.Expiration(),
+	}
+	return tokenString, cookie, nil
 }
 
 func (a *AuthJWT) getTokenReqs(user User) (map[string]interface{}, error) {
@@ -170,7 +176,7 @@ func TokenFromHeader(r *http.Request) string {
 }
 
 func TokenFromCookie(r *http.Request) string {
-	cookie, err := r.Cookie("")
+	cookie, err := r.Cookie("JWT")
 	if err != nil {
 		return ""
 	}
