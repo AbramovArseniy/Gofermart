@@ -31,7 +31,7 @@ var (
 	findOrderQuery         string = "SELECT EXISTS(SELECT order_number FROM items WHERE order_number = $1)"
 	findGoodsQuery         string = "SELECT EXISTS(SELECT match FROM goods WHERE match = $1)"
 	selectingGoodsQuery    string = "SELECT  match, reward, reward_type FROM goods"
-	orderInfoQuery         string = "SELECT * FROM accrual WHERE order_number = $1"
+	orderInfoQuery         string = "SELECT order_number, status, accrual FROM accrual WHERE order_number = $1"
 )
 
 func New(ctx context.Context, dba string) (*DataBase, error) {

@@ -23,7 +23,9 @@ func New(keeper storage.Keeper) handler {
 func (h handler) Route() *echo.Echo {
 	e := echo.New()
 
-	e.Use(middleware.Logger())
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+		Format: "time=${time_rfc3339}, method=${method}, uri=${uri}, status=${status}, error=${error}\n",
+	}))
 	e.Use(middleware.Recover())
 
 	e.GET("/api/orders/:number", h.ordersChecker)

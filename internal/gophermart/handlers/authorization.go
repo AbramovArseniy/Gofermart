@@ -52,14 +52,17 @@ func (a *AuthJWT) CheckData(u types.UserData) error {
 func (a *AuthJWT) RegisterUser(userdata types.UserData) (types.User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(userdata.Password), bcrypt.DefaultCost)
 	if err != nil {
+		log.Println("error during bcrypt")
 		return types.User{}, types.ErrHashGenerate
 	}
 	user, err := a.UserStorage.RegisterNewUser(userdata.Login, string(hash))
 	var ErrUnique *ErrUnique
 	if errors.As(err, &ErrUnique) {
+		log.Println("error.as")
 		return types.User{}, types.ErrUserExists
 	}
 	if err != nil {
+		log.Println("error")
 		return types.User{}, NewErrorRegist(userdata, err)
 	}
 	// if err != nil && !errors.Is(err, ErrUserExists) {
@@ -125,6 +128,7 @@ func (a *AuthJWT) GetUserID(r *http.Request) int {
 	if exist {
 		userID, _ = buserID.(float64)
 	}
+	log.Println("user id is", userID)
 	return int(userID)
 }
 

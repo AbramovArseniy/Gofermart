@@ -12,6 +12,7 @@ import (
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 const (
@@ -132,9 +133,9 @@ func (g *Gophermart) GetWithdrawalsHandler(c echo.Context) error {
 func (g *Gophermart) Router() *echo.Echo {
 	e := echo.New()
 
-	//e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-	//	Format: "time=${time_rfc3339}, method=${method}, uri=${uri}, status=${status}, error=${error}\n",
-	//}))
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+		Format: "time=${time_rfc3339}, method=${method}, uri=${uri}, status=${status}, error=${error}\n",
+	}))
 	e.POST("/api/user/register", g.RegistHandler)
 	e.POST("/api/user/login", g.AuthHandler)
 
