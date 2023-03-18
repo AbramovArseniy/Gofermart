@@ -122,13 +122,19 @@ func (a *AuthJWT) getTokenReqs(user types.User) (map[string]interface{}, error) 
 func (a *AuthJWT) GetUserID(r *http.Request) int {
 	token := a.verify(r, TokenFromCookie, TokenFromHeader)
 
-	var userID float64
+	var err error
+	var claims map[string]interface{}
 
-	buserID, exist := token.Get(UserIDReq)
-	if exist {
-		userID, _ = buserID.(float64)
+	if token != nil {
+		claims, err = token.AsMap(context.Background())
+		if err != nil {
+			log.Println(err)
+		}
+	} else {
+		claims = map[string]interface{}{}
 	}
-	log.Println("user id is", userID)
+	userID, _ := claims[UserIDReq].(float64)
+
 	return int(userID)
 }
 
