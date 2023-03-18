@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth"
+	jwx "github.com/lestrrat-go/jwx/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -55,7 +56,8 @@ type Authorization interface {
 	GenerateToken(user User) (string, error)
 	RegisterUser(userdata UserData) (User, error)
 	LoginUser(userdata UserData) (User, error)
-	GetUserID(h http.Header) int
+	GetUserID(r *http.Request) int
+	verify(r *http.Request, findTokenFns ...func(r *http.Request) string) jwx.Token
 }
 
 type AuthJWT struct {
@@ -136,13 +138,10 @@ func (a *AuthJWT) getTokenReqs(user User) (map[string]interface{}, error) {
 	return reqs, nil
 }
 
-func (a *AuthJWT) GetUserID(header http.Header) int {
-	tokenString := TokenFromHeader(header)
-	token, err := a.AuthToken.Decode(tokenString)
-	if err != nil {
-		log.Println(err)
-	}
+func (a *AuthJWT) GetUserID(r *http.Request) int {
+	token := a.verify(r, TokenFromCookie, TokenFromHeader)
 
+	var err error
 	var claims map[string]interface{}
 
 	if token != nil {
@@ -157,10 +156,29 @@ func (a *AuthJWT) GetUserID(header http.Header) int {
 	return int(userID)
 }
 
-func TokenFromHeader(header http.Header) string {
-	bearer := header.Get("Authorization")
+func TokenFromHeader(r *http.Request) string {
+	bearer := r.Header.Get("Authorization")
 	if len(bearer) > 7 && strings.ToUpper(bearer[0:6]) == "BEARER" {
 		return bearer[7:]
 	}
 	return ""
+}
+
+func TokenFromCookie(r *http.Request) string {
+	cookie, err := r.Cookie("jwt")
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func (a *AuthJWT) verify(r *http.Request, findTokenFns ...func(r *http.Request) string) jwx.Token {
+
+	token, err := jwtauth.VerifyRequest(a.AuthToken, r, findTokenFns...)
+	if err != nil {
+		log.Println("ошибка в verify", err)
+	}
+
+	return token
+
 }
