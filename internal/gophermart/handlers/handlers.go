@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
+	"net/url"
 	"time"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/services"
@@ -35,7 +35,11 @@ func NewGophermart(accrualSysAddress, secret string, database *database.DataBase
 	return &Gophermart{
 		Storage: database,
 		AccrualSysClient: types.Client{
-			URL:    path.Join(accrualSysAddress, "api/orders"),
+			URL: url.URL{
+				Scheme: "http",
+				Host:   accrualSysAddress,
+				Path:   "api/orders",
+			},
 			Client: http.Client{},
 		},
 		AuthenticatedUser: types.User{
@@ -50,7 +54,8 @@ func NewGophermart(accrualSysAddress, secret string, database *database.DataBase
 }
 
 func (g *Gophermart) DoRequest(number string) ([]byte, error) {
-	resp, err := http.Get(g.AccrualSysClient.URL)
+
+	resp, err := http.Get(g.AccrualSysClient.URL.String())
 	if err != nil {
 		return nil, fmt.Errorf("cannot get info from accrual system: %w", err)
 	}

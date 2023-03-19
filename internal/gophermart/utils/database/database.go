@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"path"
 	"time"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
@@ -39,7 +41,7 @@ var (
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
 	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
 	selectUserStmt                    string = `SELECT id, login, password_hash FROM users WHERE login = $1`
-	selectNotProcessedOrdersStmt      string = `SELECT (order_num) FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
+	selectNotProcessedOrdersStmt      string = `SELECT order_num FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
 	selectAccraulBalanceOrdersStmt    string = `SELECT SUM(accrual) FROM orders where order_status = 'PROCESSED' and login = $1`
 	selectAccrualWithdrawnStmt        string = `SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1`
 	insertWirdrawalStmt               string = "INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
@@ -165,17 +167,20 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 		log.Println("failed to unmarshal json from response body from accrual system:", err)
 		return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
 	}
+	log.Printf(`got order from accrual:
+	status: %s
+	accrual: %d`, o.Status, o.Accrual)
 	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
 		_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)
 	} else if o.Status == "INVALID" {
 		_, err = updateOrderStatusToInvalidStmt.Exec(orderNum)
 	} else if o.Status == "PROCESSED" {
-		_, err = updateOrderStatusToProcessedStmt.Exec(orderNum)
+		_, err = updateOrderStatusToProcessedStmt.Exec(o.Accrual, orderNum)
 	} else {
 		_, err = updateOrderStatusToUnknownStmt.Exec(orderNum)
 	}
 	if err != nil {
-		log.Println("error inserting data to db:", err)
+		log.Println("error updating orders status to db:", err)
 		return fmt.Errorf("error inserting data to db: %w", err)
 	}
 
@@ -284,7 +289,7 @@ func (d *DataBase) GetWithdrawalsByUser(authUserID int) ([]types.Withdrawal, boo
 	return w, true, nil
 }
 
-func (d *DataBase) CheckOrders(body []byte) {
+func (d *DataBase) CheckOrders(accrualSysClient types.Client) {
 	ticker := time.NewTicker(checkOrderInterval)
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
@@ -314,6 +319,19 @@ func (d *DataBase) CheckOrders(body []byte) {
 		for rows.Next() {
 			var orderNum string
 			rows.Scan(&orderNum)
+			url := accrualSysClient.URL
+			url.Path = path.Join(accrualSysClient.URL.Path, orderNum)
+			resp, err := accrualSysClient.Client.Get(url.String())
+			if err != nil {
+				log.Println("can't get response from accrual sytem:", err)
+				return
+			}
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				log.Println("can't read body of reponsefrom accrual sytem:", err)
+				return
+			}
 			d.UpgradeOrderStatus(body, orderNum)
 		}
 		if rows.Err() != nil {

@@ -31,7 +31,7 @@ func main() {
 		Handler: r,
 	}
 	log.Println("Server started at", cfg.Address)
-	// go g.Storage.CheckOrders(g.AccrualSysClient)
+	go g.Storage.CheckOrders(g.AccrualSysClient)
 	err = s.ListenAndServe()
 	if err != nil {
 		log.Fatal("error while starting server: ", err)

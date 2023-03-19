@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -26,7 +27,7 @@ type Storage interface {
 	// RegisterNewUser(login string, password string) (User, error)
 	UpgradeOrderStatus(body []byte, orderNum string) error
 	GetWithdrawalsByUser(authUserID int) (withdrawals []Withdrawal, exists bool, err error)
-	CheckOrders(body []byte)
+	CheckOrders(accrualSysClient Client)
 	CheckUserData(login, hash string) bool
 	RegisterNewUser(login string, password string) (User, error)
 	GetUserData(login string) (User, error)
@@ -56,7 +57,7 @@ type Withdrawal struct {
 }
 
 type Client struct {
-	URL    string
+	URL    url.URL
 	Client http.Client
 }
 
