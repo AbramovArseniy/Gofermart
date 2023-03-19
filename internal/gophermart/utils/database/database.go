@@ -109,7 +109,7 @@ func (d *DataBase) Migrate() {
 		order_num VARCHAR(255) PRIMARY KEY,
 		login VARCHAR(16) NOT NULL,
 		order_status VARCHAR(16) NOT NULL,
-		accrual BIGINT,
+		accrual FLOAT,
 		date_time TIMESTAMP NOT NULL
 	);`)
 	if err != nil {
@@ -120,7 +120,7 @@ func (d *DataBase) Migrate() {
 		id serial primary key,
 		user_id INT NOT NULL,
 		order_num VARCHAR(255) NOT NULL,
-		accrual BIGINT NOT NULL,
+		accrual FLOAT NOT NULL,
 		created_at TIMESTAMP NOT NULL
 	);`)
 	if err != nil {

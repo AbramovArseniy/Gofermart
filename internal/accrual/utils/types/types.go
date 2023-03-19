@@ -23,7 +23,7 @@ type (
 type Goods struct {
 	Match      string `json:"match"`
 	Reward     int    `json:"reward"`
-	RewardType string `json:"rewardtype"`
+	RewardType string `json:"reward_type"`
 }
 
 const (
