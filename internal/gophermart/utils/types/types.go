@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -64,11 +65,22 @@ type Balance struct {
 	Withdrawn float64 `json:"withdrawn"`
 }
 type Order struct {
-	User       string    `json:"user"`
+	User       string
 	Number     string    `json:"number"`
 	Status     string    `json:"status"`
 	Accrual    int       `json:"accrual,omitempty"`
 	UploadedAt time.Time `json:"uploaded_at"`
+}
+
+func (order Order) MarshalJSON() ([]byte, error) {
+	var tmp struct {
+		Number     string    `json:"number"`
+		Status     string    `json:"status"`
+		Accrual    int       `json:"accrual,omitempty"`
+		UploadedAt time.Time `json:"uploaded_at"`
+	}
+	tmp.Number, tmp.Status, tmp.Accrual, tmp.UploadedAt = order.Number, order.Status, order.Accrual, order.UploadedAt
+	return json.Marshal(tmp)
 }
 
 var (
