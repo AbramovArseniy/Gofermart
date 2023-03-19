@@ -139,7 +139,7 @@ func PostWithdrawalService(r *http.Request, storage types.Storage, auth types.Au
 	if !luhnchecker.OrderNumIsRight(w.OrderNum) {
 		return http.StatusUnprocessableEntity, fmt.Errorf("wrong order number ")
 	}
-	balance, _, err := storage.GetBalance(auth.GetUserID(r))
+	balance, _, err := storage.GetBalance(auth.GetUserLogin(r))
 	if err != nil {
 
 		return http.StatusInternalServerError, fmt.Errorf("error while counting balance: %w", err)
@@ -147,7 +147,7 @@ func PostWithdrawalService(r *http.Request, storage types.Storage, auth types.Au
 	if balance < w.Accrual {
 		return http.StatusPaymentRequired, fmt.Errorf("not enough accrual on balance")
 	}
-	storage.SaveWithdrawal(w, auth.GetUserID(r))
+	storage.SaveWithdrawal(w, auth.GetUserLogin(r))
 
 	return http.StatusOK, nil
 }
@@ -158,7 +158,7 @@ func GetBalanceService(r *http.Request, storage types.Storage, auth types.Author
 		response []byte
 		err      error
 	)
-	b.Balance, b.Withdrawn, err = storage.GetBalance(auth.GetUserID(r))
+	b.Balance, b.Withdrawn, err = storage.GetBalance(auth.GetUserLogin(r))
 	if err != nil {
 
 		return http.StatusInternalServerError, response, fmt.Errorf("error while counting balance: %w", err)
@@ -173,7 +173,7 @@ func GetBalanceService(r *http.Request, storage types.Storage, auth types.Author
 
 func GetWithdrawalsService(r *http.Request, storage types.Storage, auth types.Authorization) (int, []byte, error) {
 	var response []byte
-	w, exist, err := storage.GetWithdrawalsByUser(auth.GetUserID(r))
+	w, exist, err := storage.GetWithdrawalsByUser(auth.GetUserLogin(r))
 	if err != nil {
 		return http.StatusInternalServerError, response, fmt.Errorf("error while getting user's withdrawals: %w", err)
 	}

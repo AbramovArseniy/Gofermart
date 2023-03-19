@@ -42,10 +42,10 @@ var (
 	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
 	selectUserStmt                    string = `SELECT id, login, password_hash FROM users WHERE login = $1`
 	selectNotProcessedOrdersStmt      string = `SELECT order_num FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
-	selectAccraulBalanceOrdersStmt    string = `SELECT SUM(accrual) FROM orders where order_status = 'PROCESSED' and login = $1`
-	selectAccrualWithdrawnStmt        string = `SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1`
-	insertWirdrawalStmt               string = "INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
-	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`
+	selectAccrualBalanceOrdersStmt    string = `SELECT COALESCE(SUM(accrual), 0) FROM orders where order_status = 'PROCESSED' and login = $1`
+	selectAccrualWithdrawnStmt        string = `SELECT COALESCE(SUM(accrual), 0) FROM withdrawals WHERE login = $1`
+	insertWirdrawalStmt               string = "INSERT INTO withdrawals (login, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
+	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE login=$1`
 	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
 	selectUserIDByOrderNumStmt string        = `SELECT login FROM orders WHERE EXISTS(SELECT login FROM orders WHERE order_num = $1);`
@@ -118,7 +118,7 @@ func (d *DataBase) Migrate() {
 
 	_, err = d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS withdrawals (
 		id serial primary key,
-		user_id INT NOT NULL,
+		login VARCHAR(16) NOT NULL,
 		order_num VARCHAR(255) NOT NULL,
 		accrual FLOAT NOT NULL,
 		created_at TIMESTAMP NOT NULL
@@ -187,7 +187,7 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 	return nil
 }
 
-func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
+func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	var order, withdrawn float64
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
@@ -197,16 +197,16 @@ func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
 
 	defer tx.Rollback()
 
-	selectAccraulBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccraulBalanceOrdersStmt)
+	selectAccrualBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccrualBalanceOrdersStmt)
 	if err != nil {
 		return order, withdrawn, err
 	}
 
-	defer selectAccraulBalanceOrdersStmt.Close()
+	defer selectAccrualBalanceOrdersStmt.Close()
 
-	err = selectAccraulBalanceOrdersStmt.QueryRow(authUserID).Scan(&order)
+	err = selectAccrualBalanceOrdersStmt.QueryRow(authUserLogin).Scan(&order)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
+		return 0, 0, fmt.Errorf("cannot select accrual sum from order database: %w", err)
 	}
 
 	selectAccrualWithdrawnStmt, err := tx.PrepareContext(d.ctx, selectAccrualWithdrawnStmt)
@@ -216,9 +216,9 @@ func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
 
 	defer selectAccrualWithdrawnStmt.Close()
 
-	err = selectAccrualWithdrawnStmt.QueryRow(authUserID).Scan(&withdrawn)
+	err = selectAccrualWithdrawnStmt.QueryRow(authUserLogin).Scan(&withdrawn)
 	if err != nil {
-		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
+		return 0, 0, fmt.Errorf("cannot select accrual sum from withdrawals database: %w", err)
 	}
 
 	balance := order - withdrawn
@@ -226,7 +226,7 @@ func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
 	return balance, withdrawn, nil
 }
 
-func (d *DataBase) SaveWithdrawal(w types.Withdrawal, authUserID int) error {
+func (d *DataBase) SaveWithdrawal(w types.Withdrawal, authUserLogin string) error {
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
 		return err
@@ -241,14 +241,14 @@ func (d *DataBase) SaveWithdrawal(w types.Withdrawal, authUserID int) error {
 
 	defer insertWirdrawalStmt.Close()
 
-	_, err = insertWirdrawalStmt.Exec(authUserID, w.OrderNum, w.Accrual, time.Now().Format(time.RFC3339))
+	_, err = insertWirdrawalStmt.Exec(authUserLogin, w.OrderNum, w.Accrual, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("PostWithdrawalHandler: error while insert data into database: %w", err)
 	}
 	return nil
 }
 
-func (d *DataBase) GetWithdrawalsByUser(authUserID int) ([]types.Withdrawal, bool, error) {
+func (d *DataBase) GetWithdrawalsByUser(authUserLogin string) ([]types.Withdrawal, bool, error) {
 	var w []types.Withdrawal
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
@@ -265,7 +265,7 @@ func (d *DataBase) GetWithdrawalsByUser(authUserID int) ([]types.Withdrawal, boo
 
 	defer selectWithdrawalsByUserStmt.Close()
 
-	rows, err := selectWithdrawalsByUserStmt.QueryContext(d.ctx, authUserID)
+	rows, err := selectWithdrawalsByUserStmt.QueryContext(d.ctx, authUserLogin)
 	if err != nil {
 		log.Println("error while selecting withdrawals from database:", err)
 		return nil, false, fmt.Errorf("error while selecting withdrawals from database: %w", err)
@@ -458,7 +458,7 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (user string, exists bool,
 	return user, exists, nil
 }
 
-func (d *DataBase) GetOrdersByUser(authUserID string) (orders []types.Order, exist bool, err error) {
+func (d *DataBase) GetOrdersByUser(authUserLogin string) (orders []types.Order, exist bool, err error) {
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
 		return
@@ -473,7 +473,7 @@ func (d *DataBase) GetOrdersByUser(authUserID string) (orders []types.Order, exi
 
 	defer selectOrdersByUserStmt.Close()
 
-	rows, err := selectOrdersByUserStmt.Query(authUserID)
+	rows, err := selectOrdersByUserStmt.Query(authUserLogin)
 	if err != nil {
 		return nil, false, fmt.Errorf("error while getting orders by user from database: %w", err)
 	}

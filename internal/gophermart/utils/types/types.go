@@ -19,14 +19,14 @@ type Authorization interface {
 
 type Storage interface {
 	SaveOrder(order *Order) error
-	SaveWithdrawal(withdrawal Withdrawal, authUserID int) error
+	SaveWithdrawal(withdrawal Withdrawal, authUserLogin string) error
 	GetOrderUserByNum(orderNum string) (user string, exists bool, err error)
 	GetOrdersByUser(authUserID string) (orders []Order, exist bool, err error)
-	GetBalance(authUserID int) (balance float64, withdrawn float64, err error)
+	GetBalance(authUserLogin string) (balance float64, withdrawn float64, err error)
 	// GetUserData(login string) (User, error)
 	// RegisterNewUser(login string, password string) (User, error)
 	UpgradeOrderStatus(body []byte, orderNum string) error
-	GetWithdrawalsByUser(authUserID int) (withdrawals []Withdrawal, exists bool, err error)
+	GetWithdrawalsByUser(authUserLogin string) (withdrawals []Withdrawal, exists bool, err error)
 	CheckOrders(accrualSysClient Client)
 	CheckUserData(login, hash string) bool
 	RegisterNewUser(login string, password string) (User, error)
