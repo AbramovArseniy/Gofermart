@@ -1,4 +1,4 @@
-package handlers
+package database
 
 import (
 	"context"
@@ -9,30 +9,44 @@ import (
 	"log"
 	"time"
 
+	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 
 	// "github.com/jackc/pgconn"
 	// "github.com/jackc/pgerrcode"
 	// "github.com/jackc/pgx"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 var (
-	selectOrdersByUserStmt string = `SELECT * FROM orders WHERE user_id=$1`
+	ErrUserExists = errors.New("such user already exist in DB")
+	// ErrNewRegistration = errors.New("error while register user - main problem")
+	ErrScanData     = errors.New("error while scan user ID")
+	ErrInvalidData  = errors.New("error user data is invalid")
+	ErrHashGenerate = errors.New("error can't generate hash")
+	ErrKeyNotFound  = errors.New("error user ID not found")
+	ErrAlarm        = errors.New("error tx.BeginTx alarm")
+	ErrAlarm2       = errors.New("error tx.PrepareContext alarm")
+
+	selectOrdersByUserStmt string = `SELECT * FROM orders WHERE login=$1`
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
 	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
 	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
 	updateOrderStatusToProcessedStmt  string = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
 	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
+	selectUserStmt                    string = `SELECT id, login, password_hash FROM users WHERE login = $1`
 	selectNotProcessedOrdersStmt      string = `SELECT (order_num) FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
-	selectAccrualBalanceOrdersStmt    string = `SELECT COALESCE(SUM(accrual), 0) FROM orders where order_status = 'PROCESSED' and user_id = $1`
-	selectAccrualWithdrawnStmt        string = `SELECT COALESCE(SUM(accrual), 0) FROM withdrawals WHERE user_id = $1`
+	selectAccraulBalanceOrdersStmt    string = `SELECT SUM(accrual) FROM orders where order_status = 'PROCESSED' and login = $1`
+	selectAccrualWithdrawnStmt        string = `SELECT SUM(accrual) FROM withdrawals WHERE user_id = $1`
 	insertWirdrawalStmt               string = "INSERT INTO withdrawals (user_id, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
 	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE user_id=$1`
 	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
-	selectUserIDByOrderNumStmt string        = `SELECT user_id FROM orders WHERE EXISTS(SELECT user_id FROM orders WHERE order_num = $1);`
+	selectUserIDByOrderNumStmt string        = `SELECT login FROM orders WHERE EXISTS(SELECT login FROM orders WHERE order_num = $1);`
 	checkUserDatastmt          string        = `SELECT EXISTS(SELECT login, password_hash FROM users WHERE login = $1 AND password_hash = $2)`
 	checkOrderInterval         time.Duration = 5 * time.Second
 )
@@ -91,7 +105,7 @@ func (d *DataBase) Migrate() {
 
 	_, err = d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS orders (
 		order_num VARCHAR(255) PRIMARY KEY,
-		user_id INT NOT NULL,
+		login VARCHAR(16) NOT NULL,
 		order_status VARCHAR(16) NOT NULL,
 		accrual BIGINT,
 		date_time TIMESTAMP NOT NULL
@@ -112,13 +126,8 @@ func (d *DataBase) Migrate() {
 	}
 }
 
-func (d *DataBase) UpgradeOrderStatus(accrualSysClient Client, orderNum string) error {
-	body, err := accrualSysClient.DoRequest(orderNum)
-	if err != nil {
-		return fmt.Errorf("error while getting response body from accrual system: %w", err)
-	}
-
-	var o Order
+func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
+	var o types.Order
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
@@ -183,14 +192,14 @@ func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
 
 	defer tx.Rollback()
 
-	selectAccrualBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccrualBalanceOrdersStmt)
+	selectAccraulBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccraulBalanceOrdersStmt)
 	if err != nil {
-		return order, withdrawn, fmt.Errorf("cannot prepare selectAccrualBalanceOrdersStmt: %w", err)
+		return order, withdrawn, err
 	}
 
-	defer selectAccrualBalanceOrdersStmt.Close()
+	defer selectAccraulBalanceOrdersStmt.Close()
 
-	err = selectAccrualBalanceOrdersStmt.QueryRow(authUserID).Scan(&order)
+	err = selectAccraulBalanceOrdersStmt.QueryRow(authUserID).Scan(&order)
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select data from database: %w", err)
 	}
@@ -212,7 +221,7 @@ func (d *DataBase) GetBalance(authUserID int) (float64, float64, error) {
 	return balance, withdrawn, nil
 }
 
-func (d *DataBase) SaveWithdrawal(w Withdrawal, authUserID int) error {
+func (d *DataBase) SaveWithdrawal(w types.Withdrawal, authUserID int) error {
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
 		return err
@@ -234,8 +243,8 @@ func (d *DataBase) SaveWithdrawal(w Withdrawal, authUserID int) error {
 	return nil
 }
 
-func (d *DataBase) GetWithdrawalsByUser(authUserID int) ([]Withdrawal, bool, error) {
-	var w []Withdrawal
+func (d *DataBase) GetWithdrawalsByUser(authUserID int) ([]types.Withdrawal, bool, error) {
+	var w []types.Withdrawal
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
@@ -257,7 +266,7 @@ func (d *DataBase) GetWithdrawalsByUser(authUserID int) ([]Withdrawal, bool, err
 		return nil, false, fmt.Errorf("error while selecting withdrawals from database: %w", err)
 	}
 	for rows.Next() {
-		var withdrawal Withdrawal
+		var withdrawal types.Withdrawal
 		err = rows.Scan(&withdrawal.OrderNum, &withdrawal.Accrual, &withdrawal.ProcessedAt)
 		if err != nil {
 			log.Println("error while scanning data:", err)
@@ -275,7 +284,7 @@ func (d *DataBase) GetWithdrawalsByUser(authUserID int) ([]Withdrawal, bool, err
 	return w, true, nil
 }
 
-func (d *DataBase) CheckOrders(accrualSysClient Client) {
+func (d *DataBase) CheckOrders(body []byte) {
 	ticker := time.NewTicker(checkOrderInterval)
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
@@ -305,7 +314,7 @@ func (d *DataBase) CheckOrders(accrualSysClient Client) {
 		for rows.Next() {
 			var orderNum string
 			rows.Scan(&orderNum)
-			d.UpgradeOrderStatus(accrualSysClient, orderNum)
+			d.UpgradeOrderStatus(body, orderNum)
 		}
 		if rows.Err() != nil {
 			log.Println("CheckOrders: error while reading rows")
@@ -373,9 +382,9 @@ func (d *DataBase) CheckOrders(accrualSysClient Client) {
 // 	return user, err
 // }
 
-func (d *DataBase) SaveOrder(order *Order) error {
-	_, err := d.db.ExecContext(d.ctx, `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`,
-		order.Number, order.UserID, order.Status, order.Accrual, order.UploadedAt)
+func (d *DataBase) SaveOrder(order *types.Order) error {
+	_, err := d.db.ExecContext(d.ctx, `INSERT INTO orders (order_num, login, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`,
+		order.Number, order.User, order.Status, order.Accrual, time.Now())
 	if err != nil {
 		return err
 	}
@@ -401,37 +410,37 @@ func (d *DataBase) SaveOrder(order *Order) error {
 	return nil
 }
 
-func (d *DataBase) GetOrderUserByNum(orderNum string) (userID int, exists bool, err error) {
+func (d *DataBase) GetOrderUserByNum(orderNum string) (user string, exists bool, err error) {
 	exists = false
 
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
-		return userID, exists, err
+		return user, exists, err
 	}
 
 	defer tx.Rollback()
 
 	selectUserIDByOrderNumStmt, err := tx.PrepareContext(d.ctx, selectUserIDByOrderNumStmt)
 	if err != nil {
-		return userID, exists, err
+		return user, exists, err
 	}
 
 	defer selectUserIDByOrderNumStmt.Close()
 
 	row := selectUserIDByOrderNumStmt.QueryRowContext(d.ctx, orderNum)
 
-	err = row.Scan(&userID)
+	err = row.Scan(&user)
 	if !errors.Is(err, sql.ErrNoRows) {
 		exists = true
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return userID, exists, err
+		return user, exists, err
 	}
 
-	return userID, exists, nil
+	return user, exists, nil
 }
 
-func (d *DataBase) GetOrdersByUser(authUserID int) (orders []Order, exist bool, err error) {
+func (d *DataBase) GetOrdersByUser(authUserID string) (orders []types.Order, exist bool, err error) {
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
 		return
@@ -451,8 +460,8 @@ func (d *DataBase) GetOrdersByUser(authUserID int) (orders []Order, exist bool, 
 		return nil, false, fmt.Errorf("error while getting orders by user from database: %w", err)
 	}
 	for rows.Next() {
-		var order Order
-		err = rows.Scan(&order.Number, &order.UserID, &order.Status, &order.Accrual, &order.UploadedAt)
+		var order types.Order
+		err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt)
 		if err != nil {
 			return nil, false, fmt.Errorf("error while scanning rows from database: %w", err)
 		}
@@ -501,6 +510,91 @@ func (d *DataBase) CheckUserData(login, hash string) bool {
 		log.Println(err)
 		return exist
 	}
-	log.Println(exist)
 	return exist
+}
+
+func (d *DataBase) RegisterNewUser(login string, password string) (types.User, error) {
+	user := types.User{
+		Login:        login,
+		HashPassword: password,
+	}
+	query := `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
+	row := d.db.QueryRowContext(context.Background(), query, login, password)
+	if err := row.Scan(&user.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return types.User{}, ErrKeyNotFound
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == pgerrcode.UniqueViolation {
+				return types.User{}, ErrUserExists
+			}
+		}
+		return types.User{}, ErrScanData
+	}
+
+	// // NEW VERSION
+	// tx, err := d.db.Begin()
+	// if err != nil {
+	// 	return User{}, ErrAlarm
+	// }
+	// defer tx.Rollback()
+	// log.Println("1: everything still is ok")
+	// insertUserStmt, err := d.db.Prepare("INSERT INTO users (login, password_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id")
+	// txInsertUserStmt := tx.StmtContext(d.ctx, insertUserStmt)
+	// log.Println("2: everything still ok")
+	// row := txInsertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
+	// if err := row.Scan(&user.ID); err != nil {
+	// 	if errors.Is(err, sql.ErrNoRows) {
+	// 		return User{}, ErrKeyNotFound
+	// 	}
+	// 	return User{}, ErrScanData
+	// }
+	// log.Printf("user after Insert: %+v", user)
+
+	// OLD VERSION
+	// tx, err := d.db.BeginTx(d.ctx, nil)
+	// if err != nil {
+	// 	return User{}, ErrAlarm
+	// }
+	// defer tx.Rollback()
+	// insertUserStmt, err := tx.PrepareContext(d.ctx, insertUserStmt) // ОШИБКА ТУТ
+	// if err != nil {
+	// 	return User{}, ErrAlarm2
+	// }
+	// defer insertUserStmt.Close()
+	// log.Println("2: everything still ok")
+	// row := insertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
+	// log.Printf("row: %+v", row)
+	// if err := row.Scan(&user.ID); err != nil {
+	// 	if errors.Is(err, sql.ErrNoRows) {
+	// 		return User{}, ErrKeyNotFound
+	// 	}
+	// 	return User{}, ErrScanData
+	// }
+	// log.Printf("user: %+v", user)
+	return user, nil
+}
+
+func (d *DataBase) GetUserData(login string) (types.User, error) {
+	var user types.User
+
+	tx, err := d.db.BeginTx(d.ctx, nil)
+	if err != nil {
+		return user, err
+	}
+	defer tx.Rollback()
+
+	selectUserStmt, err := tx.PrepareContext(d.ctx, selectUserStmt)
+	if err != nil {
+		return user, err
+	}
+	defer selectUserStmt.Close()
+
+	row := selectUserStmt.QueryRow(login)
+	err = row.Scan(&user.ID, &user.Login, &user.HashPassword)
+	if err == pgx.ErrNoRows {
+		return types.User{}, nil
+	}
+	return user, err
 }

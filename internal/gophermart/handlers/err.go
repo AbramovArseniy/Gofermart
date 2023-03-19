@@ -1,6 +1,10 @@
 package handlers
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
+)
 
 type ErrUnique struct {
 	Err   error
@@ -24,10 +28,10 @@ func (err *ErrUnique) Unwrap() error {
 
 type ErrorRegist struct {
 	Err  error
-	Data UserData
+	Data types.UserData
 }
 
-func NewErrorRegist(userdata UserData, err error) error {
+func NewErrorRegist(userdata types.UserData, err error) error {
 	return &ErrorRegist{
 		Err:  err,
 		Data: userdata,
