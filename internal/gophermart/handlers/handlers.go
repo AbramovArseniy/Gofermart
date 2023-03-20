@@ -85,7 +85,7 @@ func (g *Gophermart) AuthHandler(c echo.Context) error {
 }
 
 func (g *Gophermart) PostOrderHandler(c echo.Context) error {
-	httpStatus, err := services.PostOrderService(c.Request(), g.Storage, g.Auth)
+	httpStatus, err := services.PostOrderService(c.Request(), g.Storage, g.Auth, g.AccrualSysClient)
 
 	c.Response().WriteHeader(httpStatus)
 

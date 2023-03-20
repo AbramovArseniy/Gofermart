@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/luhnchecker"
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
@@ -66,7 +67,7 @@ func AuthService(r *http.Request, storage types.Storage, auth types.Authorizatio
 	return http.StatusOK, token, err
 }
 
-func PostOrderService(r *http.Request, storage types.Storage, auth types.Authorization) (int, error) {
+func PostOrderService(r *http.Request, storage types.Storage, auth types.Authorization, accrualSysClient types.Client) (int, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := fmt.Errorf("cannot read request body %s", err)
@@ -96,7 +97,26 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 			err := fmt.Errorf("cannot save order %s", err)
 			return http.StatusInternalServerError, err
 		}
+		url := accrualSysClient.URL
+		url.Path = path.Join(accrualSysClient.URL.Path, orderNum)
+		resp, err := accrualSysClient.Client.Get(url.String())
+		if err != nil {
+			log.Println("can't get response from accrual sytem:", err)
+			return http.StatusInternalServerError, err
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Println("can't read body of reponsefrom accrual sytem:", err)
+			return http.StatusInternalServerError, err
+		}
+		if resp.StatusCode > 299 {
+			log.Println("accrual system returned statuscode:", resp.StatusCode)
+			return http.StatusInternalServerError, fmt.Errorf("accrual system returned statuscode: %d", resp.StatusCode)
+		}
+		storage.UpgradeOrderStatus(body, orderNum)
 		return http.StatusAccepted, err
+
 	}
 	log.Printf("id in order %s, id in req %s", user, auth.GetUserLogin(r))
 	if user != auth.GetUserLogin(r) {
