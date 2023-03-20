@@ -458,36 +458,39 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (user string, exists bool,
 	return user, exists, nil
 }
 
-func (d *DataBase) GetOrdersByUser(authUserLogin string) (orders []types.Order, exist bool, err error) {
+func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, error) {
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
-		return
+		return nil, false, fmt.Errorf("GetOrdersByUser: error while BeginTx: %w", err)
 	}
 
 	defer tx.Rollback()
 
 	selectOrdersByUserStmt, err := tx.PrepareContext(d.ctx, selectOrdersByUserStmt)
 	if err != nil {
-		return
+		return nil, false, fmt.Errorf("GetOrdersByUser: error while BeginTx: %w", err)
 	}
 
 	defer selectOrdersByUserStmt.Close()
-
+	log.Println("GetOrdersByUser: EVERYTHING still is OK")
 	rows, err := selectOrdersByUserStmt.Query(authUserLogin)
 	if err != nil {
-		return nil, false, fmt.Errorf("error while getting orders by user from database: %w", err)
+		return nil, false, fmt.Errorf("GetOrdersByUser: error while selectOrdersByUserStmt.Query: %w", err)
 	}
+	log.Println("GetOrdersByUser: EVERYTHING still is OK #2")
+	var orders []types.Order
 	for rows.Next() {
 		var order types.Order
 		err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt)
 		if err != nil {
-			return nil, false, fmt.Errorf("error while scanning rows from database: %w", err)
+			return nil, false, fmt.Errorf("GetOrdersByUser: error while scanning rows from database: %w", err)
 		}
 
 		orders = append(orders, order)
 	}
+	log.Printf("GetOrdersByUser: ORDERS: %v", orders)
 	if rows.Err() != nil {
-		return nil, false, fmt.Errorf("rows.Err() error database: %w", err)
+		return nil, false, fmt.Errorf("GetOrdersByUser: rows.Err() error database: %w", err)
 	}
 	if len(orders) == 0 {
 		return nil, false, nil

@@ -129,10 +129,12 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 
 func GetOrderService(r *http.Request, storage types.Storage, auth types.Authorization) (int, []byte, error) {
 	userid := auth.GetUserLogin(r)
+	log.Printf("GetOrderService: USER LOGIN: %s", userid)
 	orders, exist, err := storage.GetOrdersByUser(userid)
 	if err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
 	}
+	log.Printf("GetOrderService: ORDERS: %v", orders)
 	if !exist {
 		err = fmt.Errorf("order exists? %t", exist)
 		return http.StatusNoContent, nil, err

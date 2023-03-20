@@ -23,8 +23,6 @@ type Storage interface {
 	GetOrderUserByNum(orderNum string) (user string, exists bool, err error)
 	GetOrdersByUser(authUserID string) (orders []Order, exist bool, err error)
 	GetBalance(authUserLogin string) (balance float64, withdrawn float64, err error)
-	// GetUserData(login string) (User, error)
-	// RegisterNewUser(login string, password string) (User, error)
 	UpgradeOrderStatus(body []byte, orderNum string) error
 	GetWithdrawalsByUser(authUserLogin string) (withdrawals []Withdrawal, exists bool, err error)
 	CheckOrders(accrualSysClient Client)
