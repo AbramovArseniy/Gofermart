@@ -36,7 +36,7 @@ var (
 	// selectOrdersByUserStmt string = `SELECT * FROM orders WHERE login=$1` // albert
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
 	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
-	selectOrdersByUserStmt            string = `SELECT (order_num, order_status, accrual, date_time) FROM orders WHERE login=$1` // albert
+	selectOrdersByUserStmt            string = `SELECT (order_num, order_status, accrual, date_time) FROM orders WHERE login=$1 ORDER BY date_time DESC` // albert
 	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
 	updateOrderStatusToProcessedStmt  string = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
@@ -117,7 +117,7 @@ func (d *DataBase) Migrate() {
 		order_num VARCHAR(255) PRIMARY KEY,
 		login VARCHAR(16) NOT NULL,
 		order_status VARCHAR(16) NOT NULL,
-		accrual FLOAT,
+		accrual DECIMAL,
 		date_time TIMESTAMP NOT NULL DEFAULT NOW()
 	);`)
 	if err != nil {
@@ -486,18 +486,22 @@ func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, e
 	if err != nil {
 		return nil, false, fmt.Errorf("GetOrdersByUser: error while selectOrdersByUserStmt.Query: %w", err)
 	}
+	defer rows.Close()
 	log.Println("GetOrdersByUser: EVERYTHING still is OK #2")
 	var orders []types.Order
 	for rows.Next() {
-		var order types.Order
-		var accrual sql.NullFloat64                                                // ALBERT
-		err = rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt) // ALBERT
-		// err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt) // ALBERT
-		order.Accrual = accrual.Float64
-		if err != nil {
+		order := types.Order{}
+		var accrual sql.NullFloat64 // ALBERT
+		if err = rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt); err != nil {
 			return nil, false, fmt.Errorf("GetOrdersByUser: error while scanning rows from database: %w", err)
 		}
+		// ALBERT
+		// err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt) // ALBERT
 
+		// if err != nil {
+		// 	return nil, false, fmt.Errorf("GetOrdersByUser: error while scanning rows from database: %w", err)
+		// }
+		order.Accrual = accrual.Float64
 		orders = append(orders, order)
 	}
 	log.Printf("GetOrdersByUser: ORDERS: %v", orders)
