@@ -16,9 +16,6 @@ import (
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 
-	// "github.com/jackc/pgconn"
-	// "github.com/jackc/pgerrcode"
-	// "github.com/jackc/pgx"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx"
@@ -26,8 +23,7 @@ import (
 )
 
 var (
-	ErrUserExists = errors.New("such user already exist in DB")
-	// ErrNewRegistration = errors.New("error while register user - main problem")
+	ErrUserExists   = errors.New("such user already exist in DB")
 	ErrScanData     = errors.New("error while scan user ID")
 	ErrInvalidData  = errors.New("error user data is invalid")
 	ErrHashGenerate = errors.New("error can't generate hash")
@@ -35,26 +31,21 @@ var (
 	ErrAlarm        = errors.New("error tx.BeginTx alarm")
 	ErrAlarm2       = errors.New("error tx.PrepareContext alarm")
 
-	selectOrdersByUserStmt string = `SELECT * FROM orders WHERE login=$1`
-	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
-	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
-	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
-	updateOrderStatusToProcessedStmt  string = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
-	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
-	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
-	selectUserStmt                    string = `SELECT id, login, password_hash FROM users WHERE login = $1`
-	selectNotProcessedOrdersStmt      string = `SELECT order_num FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
-	selectAccrualBalanceOrdersStmt    string = `SELECT COALESCE(SUM(accrual), 0) FROM orders WHERE order_status = 'PROCESSED' AND login = $1`
-	selectAccrualWithdrawnStmt        string = `SELECT COALESCE(SUM(accrual), 0) FROM withdrawals WHERE login = $1`
-	insertWirdrawalStmt               string = "INSERT INTO withdrawals (login, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
-	selectWithdrawalsByUserStmt       string = `SELECT order_num, accrual, created_at FROM withdrawals WHERE login=$1`
-	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
-	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
-	// selectUserIDByOrderNumStmt string = `SELECT login FROM orders WHERE order_num = $1;`
-	selectUserIDByOrderNumStmt string        = `SELECT login FROM orders WHERE EXISTS(SELECT login FROM orders WHERE order_num = $1);`
-	selectUserIDStmt           string        = `SELECT login from orders WHERE order_num = $1;`
-	checkUserDatastmt          string        = `SELECT EXISTS(SELECT login, password_hash FROM users WHERE login = $1 AND password_hash = $2)`
-	checkOrderInterval         time.Duration = 5 * time.Second
+	selectOrdersByUserStmt            string        = `SELECT * FROM orders WHERE login=$1`
+	updateOrderStatusToProcessingStmt string        = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
+	updateOrderStatusToProcessedStmt  string        = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
+	updateOrderStatusToInvalidStmt    string        = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
+	updateOrderStatusToUnknownStmt    string        = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
+	selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
+	selectNotProcessedOrdersStmt      string        = `SELECT order_num FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
+	selectAccrualBalanceOrdersStmt    string        = `SELECT COALESCE(SUM(accrual), 0) FROM orders WHERE order_status = 'PROCESSED' AND login = $1`
+	selectAccrualWithdrawnStmt        string        = `SELECT COALESCE(SUM(accrual), 0) FROM withdrawals WHERE login = $1`
+	insertWirdrawalStmt               string        = "INSERT INTO withdrawals (login, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
+	selectWithdrawalsByUserStmt       string        = `SELECT order_num, accrual, created_at FROM withdrawals WHERE login=$1`
+	selectUserIDByOrderNumStmt        string        = `SELECT login FROM orders WHERE EXISTS(SELECT login FROM orders WHERE order_num = $1);`
+	selectUserIDStmt                  string        = `SELECT login from orders WHERE order_num = $1;`
+	checkUserDatastmt                 string        = `SELECT EXISTS(SELECT login, password_hash FROM users WHERE login = $1 AND password_hash = $2)`
+	checkOrderInterval                time.Duration = 5 * time.Second
 )
 
 type DataBase struct {
@@ -80,25 +71,6 @@ func NewDataBase(ctx context.Context, dba string) (*DataBase, error) {
 }
 
 func (d *DataBase) Migrate() {
-
-	// driver, err := postgres.WithInstance(d.db, &postgres.Config{})
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-
-	// m, err := migrate.NewWithDatabaseInstance(
-	// 	"file://migrations",
-	// 	d.dba,
-	// 	driver)
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-
-	// log.Println(m.Version())
-
-	// if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-	// 	log.Println(err)
-	// }
 
 	_, err := d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS users (
 		id SERIAL UNIQUE,
@@ -200,7 +172,7 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	}
 
 	defer tx.Rollback()
-	// log.Printf(`GetBalance: authUserLogin: %s`, authUserLogin)
+
 	selectAccrualBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccrualBalanceOrdersStmt)
 	if err != nil {
 		return order, withdrawn, err
@@ -212,9 +184,7 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select accrual sum from order database: %w", err)
 	}
-	// log.Printf(`GetBalance: order from accrual before Round: %f`, order)
 	order = Round(order, 0.01)
-	// log.Printf(`GetBalance: order from accrual after Round: %f`, order)
 	selectAccrualWithdrawnStmt, err := tx.PrepareContext(d.ctx, selectAccrualWithdrawnStmt)
 	if err != nil {
 		return order, withdrawn, err
@@ -226,10 +196,8 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select accrual sum from withdrawals database: %w", err)
 	}
-	// log.Printf(`GetBalance: withdrawn from accrual: %f`, withdrawn)
 	balance := order - withdrawn
-	// balance = Round(balance, 0.01)
-	// log.Printf(`GetBalance: balance: %f`, balance)
+
 	return balance, withdrawn, nil
 }
 
@@ -352,89 +320,12 @@ func Round(x, unit float64) float64 {
 	return math.Round(x/unit) * unit
 }
 
-// func (d *DataBase) RegisterNewUser(login string, password string) (User, error) {
-// 	user := User{
-// 		Login:        login,
-// 		HashPassword: password,
-// 	}
-// 	log.Printf("user: %+v", user)
-// 	tx, err := d.db.BeginTx(d.ctx, nil)
-// 	if err != nil {
-// 		return User{}, ErrAlarm
-// 	}
-// 	defer tx.Rollback()
-
-// 	insertUserStmt, err := tx.PrepareContext(d.ctx, insertUserStmt)
-// 	if err != nil {
-// 		return User{}, ErrAlarm2
-// 	}
-// 	defer insertUserStmt.Close()
-// 	log.Println("everything still is ok")
-// 	row := insertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
-// 	log.Printf("row: %+v", row)
-// 	if err := row.Scan(&user.ID); err != nil {
-// 		if errors.Is(err, sql.ErrNoRows) {
-// 			return User{}, ErrKeyNotFound
-// 		}
-// 		return User{}, ErrScanData
-// 	}
-// 	log.Printf("user: %+v", user)
-// 	var pgErr *pgconn.PgError
-// 	if errors.As(err, &pgErr) {
-// 		if pgErr.Code == pgerrcode.UniqueViolation {
-// 			return User{}, ErrUserExists
-// 		}
-// 	}
-// 	return user, nil
-// }
-
-// func (d *DataBase) GetUserData(login string) (User, error) {
-// 	var user User
-
-// 	tx, err := d.db.BeginTx(d.ctx, nil)
-// 	if err != nil {
-// 		return user, err
-// 	}
-// 	defer tx.Rollback()
-
-// 	selectUserStmt, err := tx.PrepareContext(d.ctx, selectUserStmt)
-// 	if err != nil {
-// 		return user, err
-// 	}
-// 	defer selectUserStmt.Close()
-
-// 	row := selectUserStmt.QueryRow(login)
-// 	err = row.Scan(&user.ID, &user.Login, &user.HashPassword)
-// 	if err == pgx.ErrNoRows {
-// 		return User{}, nil
-// 	}
-// 	return user, err
-// }
-
 func (d *DataBase) SaveOrder(order *types.Order) error {
 	_, err := d.db.ExecContext(d.ctx, `INSERT INTO orders (order_num, login, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`,
 		order.Number, order.User, order.Status, order.Accrual, time.Now())
 	if err != nil {
 		return err
 	}
-	// tx, err := d.db.BeginTx(d.ctx, nil)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// defer tx.Rollback()
-
-	// insertOrderStmt, err := tx.PrepareContext(d.ctx, insertOrderStmt)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// defer insertOrderStmt.Close()
-
-	// _, err = insertOrderStmt.ExecContext(d.ctx, order.Number, order.UserID, order.Status, order.Accrual, order.UploadedAt)
-	// if err != nil {
-	// 	return err
-	// }
 
 	return nil
 }
@@ -504,12 +395,10 @@ func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, e
 	}
 
 	defer selectOrdersByUserStmt.Close()
-	// log.Println("GetOrdersByUser: EVERYTHING still is OK")
 	rows, err := selectOrdersByUserStmt.Query(authUserLogin)
 	if err != nil {
 		return nil, false, fmt.Errorf("GetOrdersByUser: error while selectOrdersByUserStmt.Query: %w", err)
 	}
-	// log.Println("GetOrdersByUser: EVERYTHING still is OK #2")
 	var orders []types.Order
 	for rows.Next() {
 		var order types.Order
@@ -528,7 +417,7 @@ func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, e
 	if len(orders) == 0 {
 		return nil, false, nil
 	}
-	// log.Println("GetOrdersByUser: EVERYTHING still is OK #3")
+
 	return orders, true, nil
 }
 
@@ -587,46 +476,6 @@ func (d *DataBase) RegisterNewUser(login string, password string) (types.User, e
 		return types.User{}, ErrScanData
 	}
 
-	// // NEW VERSION
-	// tx, err := d.db.Begin()
-	// if err != nil {
-	// 	return User{}, ErrAlarm
-	// }
-	// defer tx.Rollback()
-	// log.Println("1: everything still is ok")
-	// insertUserStmt, err := d.db.Prepare("INSERT INTO users (login, password_hash) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id")
-	// txInsertUserStmt := tx.StmtContext(d.ctx, insertUserStmt)
-	// log.Println("2: everything still ok")
-	// row := txInsertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
-	// if err := row.Scan(&user.ID); err != nil {
-	// 	if errors.Is(err, sql.ErrNoRows) {
-	// 		return User{}, ErrKeyNotFound
-	// 	}
-	// 	return User{}, ErrScanData
-	// }
-	// log.Printf("user after Insert: %+v", user)
-
-	// OLD VERSION
-	// tx, err := d.db.BeginTx(d.ctx, nil)
-	// if err != nil {
-	// 	return User{}, ErrAlarm
-	// }
-	// defer tx.Rollback()
-	// insertUserStmt, err := tx.PrepareContext(d.ctx, insertUserStmt) // ОШИБКА ТУТ
-	// if err != nil {
-	// 	return User{}, ErrAlarm2
-	// }
-	// defer insertUserStmt.Close()
-	// log.Println("2: everything still ok")
-	// row := insertUserStmt.QueryRowContext(d.ctx, user.Login, user.HashPassword)
-	// log.Printf("row: %+v", row)
-	// if err := row.Scan(&user.ID); err != nil {
-	// 	if errors.Is(err, sql.ErrNoRows) {
-	// 		return User{}, ErrKeyNotFound
-	// 	}
-	// 	return User{}, ErrScanData
-	// }
-	// log.Printf("user: %+v", user)
 	return user, nil
 }
 
@@ -650,5 +499,6 @@ func (d *DataBase) GetUserData(login string) (types.User, error) {
 	if err == pgx.ErrNoRows {
 		return types.User{}, nil
 	}
+
 	return user, err
 }

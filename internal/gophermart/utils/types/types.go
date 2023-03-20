@@ -84,8 +84,7 @@ func (order Order) MarshalJSON() ([]byte, error) {
 }
 
 var (
-	ErrUserExists = errors.New("such user already exist in DB")
-	// ErrNewRegistration = errors.New("error while register user - main problem")
+	ErrUserExists   = errors.New("such user already exist in DB")
 	ErrScanData     = errors.New("error while scan user ID")
 	ErrInvalidData  = errors.New("error user data is invalid")
 	ErrHashGenerate = errors.New("error can't generate hash")

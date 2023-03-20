@@ -7,16 +7,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/database"
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
 	"github.com/go-chi/jwtauth"
 	jwx "github.com/lestrrat-go/jwx/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
-
-type UserDB interface {
-	RegisterNewUser(login string, password string) (types.User, error)
-	GetUserData(login string) (types.User, error)
-}
 
 const (
 	UserIDReq    = "user_id"
@@ -31,6 +27,7 @@ type AuthJWT struct {
 
 func NewAuth(store types.UserDB, secret string, context context.Context) *AuthJWT {
 	jwtAuth := jwtauth.New("HS256", []byte(secret), nil)
+
 	return &AuthJWT{
 		AuthToken:   jwtAuth,
 		UserStorage: store,
@@ -45,6 +42,7 @@ func (a *AuthJWT) CheckData(u types.UserData) error {
 	if u.Password == "" {
 		return errors.New("error: password is empty")
 	}
+
 	return nil
 }
 
@@ -55,21 +53,11 @@ func (a *AuthJWT) RegisterUser(userdata types.UserData) (types.User, error) {
 		return types.User{}, types.ErrHashGenerate
 	}
 	user, err := a.UserStorage.RegisterNewUser(userdata.Login, string(hash))
-	var ErrUnique *ErrUnique
-	if errors.As(err, &ErrUnique) {
-		log.Println("error.as")
-		return types.User{}, types.ErrUserExists
-	}
 	if err != nil {
-		log.Println("error")
-		return types.User{}, NewErrorRegist(userdata, err)
+		log.Println("error Register New User")
+		return types.User{}, database.ErrUserExists
 	}
-	// if err != nil && !errors.Is(err, ErrUserExists) {
-	// 	return User{}, ErrNewRegistration
-	// }
-	// if errors.Is(err, ErrUserExists) {
-	// 	return User{}, ErrUserExists
-	// }
+
 	return user, nil
 }
 
@@ -147,26 +135,9 @@ func (a *AuthJWT) GetUserLogin(r *http.Request) string {
 	if exist {
 		login, _ = buserID.(string)
 	}
+
 	return login
 }
-
-// func TokenFromHeader(r *http.Request) string {
-// 	bearer := r.Header.Get("Authorization")
-// 	if len(bearer) > 7 && strings.ToUpper(bearer[0:6]) == "BEARER" {
-// 		return bearer[7:]
-// 	}
-
-// 	return ""
-// }
-
-// func TokenFromCookie(r *http.Request) string {
-// 	cookie, err := r.Cookie("JWT")
-// 	if err != nil {
-// 		return ""
-// 	}
-
-// 	return cookie.Value
-// }
 
 func (a *AuthJWT) verify(r *http.Request, findTokenFns ...func(r *http.Request) string) jwx.Token {
 	token, err := jwtauth.VerifyRequest(a.AuthToken, r, findTokenFns...)

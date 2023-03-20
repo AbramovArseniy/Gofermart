@@ -67,73 +67,6 @@ func AuthService(r *http.Request, storage types.Storage, auth types.Authorizatio
 	return http.StatusOK, token, err
 }
 
-// func PostOrderService(r *http.Request, storage types.Storage, auth types.Authorization, accrualSysClient types.Client) (int, error) {
-// 	body, err := io.ReadAll(r.Body)
-// 	if err != nil {
-// 		err := fmt.Errorf("cannot read request body %s", err)
-// 		return http.StatusInternalServerError, err
-// 	}
-// 	requestUser := auth.GetUserLogin(r)
-// 	orderNum := string(body)
-// 	numIsRight := luhnchecker.OrderNumIsRight(orderNum)
-// 	orderUser, err := storage.GetOrderUser(orderNum)
-// 	if err != nil {
-// 		err := fmt.Errorf("cannot get orderUser id by order number %s", err)
-// 		return http.StatusInternalServerError, err
-// 	}
-
-// 	user, exists, err := storage.GetOrderUserByNum(orderNum)
-// 	if err != nil {
-// 		err := fmt.Errorf("cannot get user id by order number %s", err)
-// 		return http.StatusInternalServerError, err
-// 	}
-
-// 	log.Printf("requestUser: %s, orderUser: %s, user: %s", requestUser, orderUser, user)
-
-// 	if !numIsRight {
-// 		err := fmt.Errorf("luhnchecker %t", numIsRight)
-// 		return http.StatusUnprocessableEntity, err
-// 	}
-// 	order := types.Order{
-// 		User:   requestUser,
-// 		Number: orderNum,
-// 		Status: "NEW",
-// 	}
-// 	if !exists {
-// 		err = storage.SaveOrder(&order)
-// 		if err != nil {
-// 			err := fmt.Errorf("cannot save order %s", err)
-// 			return http.StatusInternalServerError, err
-// 		}
-// 		url := accrualSysClient.URL
-// 		url.Path = path.Join(accrualSysClient.URL.Path, orderNum)
-// 		resp, err := accrualSysClient.Client.Get(url.String())
-// 		if err != nil {
-// 			log.Println("can't get response from accrual sytem:", err)
-// 			return http.StatusInternalServerError, err
-// 		}
-// 		defer resp.Body.Close()
-// 		body, err := io.ReadAll(resp.Body)
-// 		if err != nil {
-// 			log.Println("can't read body of reponsefrom accrual sytem:", err)
-// 			return http.StatusInternalServerError, err
-// 		}
-// 		if resp.StatusCode > 299 {
-// 			log.Println("accrual system returned statuscode:", resp.StatusCode)
-// 			return http.StatusInternalServerError, fmt.Errorf("accrual system returned statuscode: %d", resp.StatusCode)
-// 		}
-// 		storage.UpgradeOrderStatus(body, orderNum)
-// 		return http.StatusAccepted, err
-
-// 	}
-// 	log.Printf("UserID in order %s, UserID in request %s", user, requestUser)
-// 	if user == requestUser {
-// 		return http.StatusOK, nil
-// 	} else {
-// 		return http.StatusConflict, fmt.Errorf("order already uploaded by another user")
-// 	}
-// }
-
 func PostOrderService(r *http.Request, storage types.Storage, auth types.Authorization, accrualSysClient types.Client) (int, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -143,19 +76,12 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 	user := auth.GetUserLogin(r)
 	orderNum := string(body)
 	numIsRight := luhnchecker.OrderNumIsRight(orderNum)
-	// orderUser, err := storage.GetOrderUser(orderNum)
-	// if err != nil {
-	// 	err := fmt.Errorf("cannot get orderUser id by order number %s", err)
-	// 	return http.StatusInternalServerError, err
-	// }
 
 	_, exists, err := storage.GetOrderUserByNum(orderNum)
 	if err != nil {
 		err := fmt.Errorf("cannot get user id by order number %s", err)
 		return http.StatusInternalServerError, err
 	}
-
-	// log.Printf("requestUser: %s, orderUser: %s, user: %s", requestUser, orderUser, user)
 
 	if !numIsRight {
 		err := fmt.Errorf("luhnchecker %t", numIsRight)
@@ -198,7 +124,6 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 		err := fmt.Errorf("cannot get orderUser id by order number %s", err)
 		return http.StatusInternalServerError, err
 	}
-	// log.Printf("UserID in order %s, UserID in request %s", user, requestUser)
 	if user == orderUser {
 		return http.StatusOK, nil
 	} else {
@@ -208,12 +133,10 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 
 func GetOrderService(r *http.Request, storage types.Storage, auth types.Authorization) (int, []byte, error) {
 	userid := auth.GetUserLogin(r)
-	// log.Printf("GetOrderService: USER LOGIN: %s", userid)
 	orders, exist, err := storage.GetOrdersByUser(userid)
 	if err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
 	}
-	// log.Printf("GetOrderService: ORDERS: %v", orders)
 	if !exist {
 		err = fmt.Errorf("order exists? %t", exist)
 		return http.StatusNoContent, nil, err
@@ -222,7 +145,6 @@ func GetOrderService(r *http.Request, storage types.Storage, auth types.Authoriz
 	if body, err = json.Marshal(&orders); err != nil {
 		return http.StatusInternalServerError, nil, err
 	}
-	// log.Println("GetOrderService: EVERYTHING still is OK #4")
 	return http.StatusOK, body, nil
 }
 
