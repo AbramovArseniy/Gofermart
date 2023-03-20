@@ -490,11 +490,12 @@ func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, e
 	var orders []types.Order
 	for rows.Next() {
 		var order types.Order
-		err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt)
+		var accrual float64
+		err = rows.Scan(&order.Number, &order.User, &order.Status, &accrual, &order.UploadedAt)
 		if err != nil {
 			return nil, false, fmt.Errorf("GetOrdersByUser: error while scanning rows from database: %w", err)
 		}
-
+		order.Accrual = Round(accrual, 0.01)
 		orders = append(orders, order)
 	}
 	log.Printf("GetOrdersByUser: ORDERS: %v", orders)
