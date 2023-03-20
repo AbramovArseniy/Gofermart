@@ -58,7 +58,7 @@ func (d *DataBase) Migrate() {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://../../internal/accrual/utils/database/migrations",
+		"file://internal/accrual/utils/database/migrations",
 		d.dba,
 		driver)
 	if err != nil {
