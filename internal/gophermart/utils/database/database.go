@@ -42,7 +42,7 @@ var (
 	updateOrderStatusToUnknownStmt    string = `UPDATE orders SET order_status='UNKNOWN' WHERE order_num=$1`
 	selectUserStmt                    string = `SELECT id, login, password_hash FROM users WHERE login = $1`
 	selectNotProcessedOrdersStmt      string = `SELECT order_num FROM orders WHERE order_status='NEW' OR order_status='PROCESSING'`
-	selectAccrualBalanceOrdersStmt    string = `SELECT COALESCE(SUM(accrual), 0) FROM orders where order_status = 'PROCESSED' and login = $1`
+	selectAccrualBalanceOrdersStmt    string = `SELECT COALESCE(SUM(accrual), 0) FROM orders WHERE order_status = 'PROCESSED' AND login = $1`
 	selectAccrualWithdrawnStmt        string = `SELECT COALESCE(SUM(accrual), 0) FROM withdrawals WHERE login = $1`
 	insertWirdrawalStmt               string = "INSERT INTO withdrawals (login, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
 	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE login=$1`
@@ -169,7 +169,8 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 	}
 	log.Printf(`got order from accrual:
 	status: %s
-	accrual: %d`, o.Status, o.Accrual)
+	accrual: %d
+	user: %s`, o.Status, o.Accrual, o.User)
 	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
 		_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)
 	} else if o.Status == "INVALID" {
@@ -195,7 +196,7 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	}
 
 	defer tx.Rollback()
-
+	log.Printf(`GetBalance: authUserLogin: %s`, authUserLogin)
 	selectAccrualBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccrualBalanceOrdersStmt)
 	if err != nil {
 		return order, withdrawn, err
@@ -207,7 +208,7 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select accrual sum from order database: %w", err)
 	}
-
+	log.Printf(`GetBalance: order from accrual: %f`, order)
 	selectAccrualWithdrawnStmt, err := tx.PrepareContext(d.ctx, selectAccrualWithdrawnStmt)
 	if err != nil {
 		return order, withdrawn, err
@@ -219,9 +220,9 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select accrual sum from withdrawals database: %w", err)
 	}
-
+	log.Printf(`GetBalance: withdrawn from accrual: %f`, withdrawn)
 	balance := order - withdrawn
-
+	log.Printf(`GetBalance: balance: %f`, balance)
 	return balance, withdrawn, nil
 }
 
@@ -300,7 +301,7 @@ func (d *DataBase) CheckOrders(accrualSysClient types.Client) {
 
 	selectNotProcessedOrdersStmt, err := tx.PrepareContext(d.ctx, selectNotProcessedOrdersStmt) // ОШИБКА ЗДЕСЬ
 	if err != nil {
-		log.Printf("error in chechorder func2: %s", err)
+		log.Printf("error in checkorder func2: %s", err)
 	}
 
 	defer selectNotProcessedOrdersStmt.Close()
@@ -457,41 +458,44 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (user string, exists bool,
 	return user, exists, nil
 }
 
-func (d *DataBase) GetOrdersByUser(authUserLogin string) (orders []types.Order, exist bool, err error) {
+func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, error) {
 	tx, err := d.db.BeginTx(d.ctx, nil)
 	if err != nil {
-		return
+		return nil, false, fmt.Errorf("GetOrdersByUser: error while BeginTx: %w", err)
 	}
 
 	defer tx.Rollback()
 
 	selectOrdersByUserStmt, err := tx.PrepareContext(d.ctx, selectOrdersByUserStmt)
 	if err != nil {
-		return
+		return nil, false, fmt.Errorf("GetOrdersByUser: error while BeginTx: %w", err)
 	}
 
 	defer selectOrdersByUserStmt.Close()
-
+	log.Println("GetOrdersByUser: EVERYTHING still is OK")
 	rows, err := selectOrdersByUserStmt.Query(authUserLogin)
 	if err != nil {
-		return nil, false, fmt.Errorf("error while getting orders by user from database: %w", err)
+		return nil, false, fmt.Errorf("GetOrdersByUser: error while selectOrdersByUserStmt.Query: %w", err)
 	}
+	log.Println("GetOrdersByUser: EVERYTHING still is OK #2")
+	var orders []types.Order
 	for rows.Next() {
 		var order types.Order
 		err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt)
 		if err != nil {
-			return nil, false, fmt.Errorf("error while scanning rows from database: %w", err)
+			return nil, false, fmt.Errorf("GetOrdersByUser: error while scanning rows from database: %w", err)
 		}
 
 		orders = append(orders, order)
 	}
+	log.Printf("GetOrdersByUser: ORDERS: %v", orders)
 	if rows.Err() != nil {
-		return nil, false, fmt.Errorf("rows.Err() error database: %w", err)
+		return nil, false, fmt.Errorf("GetOrdersByUser: rows.Err() error database: %w", err)
 	}
 	if len(orders) == 0 {
 		return nil, false, nil
 	}
-
+	log.Println("GetOrdersByUser: EVERYTHING still is OK #3")
 	return orders, true, nil
 }
 
