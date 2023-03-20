@@ -217,14 +217,14 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	}
 
 	defer selectAccrualWithdrawnStmt.Close()
-
+	order = Round(order, 0.01)
 	err = selectAccrualWithdrawnStmt.QueryRow(authUserLogin).Scan(&withdrawn)
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select accrual sum from withdrawals database: %w", err)
 	}
 	log.Printf(`GetBalance: withdrawn from accrual: %f`, withdrawn)
 	balance := order - withdrawn
-	balance = Round(balance, 0.01)
+	// balance = Round(balance, 0.01)
 	log.Printf(`GetBalance: balance: %f`, balance)
 	return balance, withdrawn, nil
 }
