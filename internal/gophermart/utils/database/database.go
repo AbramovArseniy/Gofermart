@@ -11,6 +11,8 @@ import (
 	"path"
 	"time"
 
+	"math"
+
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 
@@ -222,6 +224,7 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	}
 	log.Printf(`GetBalance: withdrawn from accrual: %f`, withdrawn)
 	balance := order - withdrawn
+	balance = Round(balance, 0.01)
 	log.Printf(`GetBalance: balance: %f`, balance)
 	return balance, withdrawn, nil
 }
@@ -339,6 +342,10 @@ func (d *DataBase) CheckOrders(accrualSysClient types.Client) {
 		}
 	}
 
+}
+
+func Round(x, unit float64) float64 {
+	return math.Round(x/unit) * unit
 }
 
 // func (d *DataBase) RegisterNewUser(login string, password string) (User, error) {
