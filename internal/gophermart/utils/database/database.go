@@ -36,7 +36,7 @@ var (
 	// selectOrdersByUserStmt string = `SELECT * FROM orders WHERE login=$1` // albert
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
 	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
-	selectOrdersByUserStmt            string = `SELECT (order_num, order_status, accrual, date_time) FROM orders WHERE login=$1 ORDER BY date_time DESC` // albert
+	selectOrdersByUserStmt            string = `SELECT order_num, order_status, accrual, date_time FROM orders WHERE login=$1 ORDER BY date_time DESC` // albert
 	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
 	updateOrderStatusToProcessedStmt  string = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
