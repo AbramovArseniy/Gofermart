@@ -45,7 +45,7 @@ var (
 	selectAccrualBalanceOrdersStmt    string = `SELECT COALESCE(SUM(accrual), 0) FROM orders WHERE order_status = 'PROCESSED' AND login = $1`
 	selectAccrualWithdrawnStmt        string = `SELECT COALESCE(SUM(accrual), 0) FROM withdrawals WHERE login = $1`
 	insertWirdrawalStmt               string = "INSERT INTO withdrawals (login, order_num, accrual, created_at) VALUES ($1, $2, $3, $4)"
-	selectWithdrawalsByUserStmt       string = `SELECT (order_num, accrual, created_at) FROM withdrawals WHERE login=$1`
+	selectWithdrawalsByUserStmt       string = `SELECT order_num, accrual, created_at FROM withdrawals WHERE login=$1`
 	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
 	selectUserIDByOrderNumStmt string        = `SELECT login FROM orders WHERE EXISTS(SELECT login FROM orders WHERE order_num = $1);`
@@ -245,7 +245,7 @@ func (d *DataBase) SaveWithdrawal(w types.Withdrawal, authUserLogin string) erro
 	if err != nil {
 		return fmt.Errorf("PostWithdrawalHandler: error while insert data into database: %w", err)
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (d *DataBase) GetWithdrawalsByUser(authUserLogin string) ([]types.Withdrawal, bool, error) {

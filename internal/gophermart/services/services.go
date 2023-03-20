@@ -163,9 +163,9 @@ func PostWithdrawalService(r *http.Request, storage types.Storage, auth types.Au
 	}
 	balance, _, err := storage.GetBalance(auth.GetUserLogin(r))
 	if err != nil {
-
 		return http.StatusInternalServerError, fmt.Errorf("error while counting balance: %w", err)
 	}
+
 	if balance < w.Accrual {
 		return http.StatusPaymentRequired, fmt.Errorf("not enough accrual on balance")
 	}
