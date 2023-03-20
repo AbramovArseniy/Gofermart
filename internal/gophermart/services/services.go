@@ -143,7 +143,7 @@ func GetOrderService(r *http.Request, storage types.Storage, auth types.Authoriz
 	if body, err = json.Marshal(&orders); err != nil {
 		return http.StatusInternalServerError, nil, err
 	}
-
+	log.Println("GetOrderService: EVERYTHING still is OK #4")
 	return http.StatusOK, body, nil
 }
 
@@ -183,11 +183,11 @@ func GetBalanceService(r *http.Request, storage types.Storage, auth types.Author
 	b.Balance, b.Withdrawn, err = storage.GetBalance(auth.GetUserLogin(r))
 	if err != nil {
 
-		return http.StatusInternalServerError, response, fmt.Errorf("error while counting balance: %w", err)
+		return http.StatusInternalServerError, response, fmt.Errorf("GetBalanceService: error while counting balance: %w", err)
 	}
 	response, err = json.Marshal(b)
 	if err != nil {
-		return http.StatusInternalServerError, response, fmt.Errorf("error while marshling response json: %w", err)
+		return http.StatusInternalServerError, response, fmt.Errorf("GetBalanceService: error while marshaling response json: %w", err)
 	}
 
 	return http.StatusOK, response, nil

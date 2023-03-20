@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -55,15 +56,15 @@ func (g *Gophermart) DoRequest(number string) ([]byte, error) {
 
 	resp, err := http.Get(g.AccrualSysClient.URL.String())
 	if err != nil {
-		return nil, fmt.Errorf("cannot get info from accrual system: %w", err)
+		return nil, fmt.Errorf("DoRequest: cannot get info from accrual system: %w", err)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("PostOrderHandler: error while reading response body from accrual system: %w", err)
+		return nil, fmt.Errorf("DoRequest: error while reading response body from accrual system: %w", err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode > 299 {
-		return nil, fmt.Errorf("accrual system returned status %d, error", resp.StatusCode)
+		return nil, fmt.Errorf("DoRequest: accrual system returned status %d, error", resp.StatusCode)
 	}
 	return body, nil
 }
@@ -96,7 +97,7 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	c.Response().Header().Set("Content-Type", "application/json")
 
 	httpStatus, body, err := services.GetOrderService(c.Request(), g.Storage, g.Auth)
-
+	log.Println("GetOrdersHandler: EVERYTHING still is OK #5")
 	c.Response().Writer.WriteHeader(httpStatus)
 	c.Response().Writer.Write(body)
 
