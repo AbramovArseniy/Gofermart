@@ -169,7 +169,7 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 	}
 	log.Printf(`got order from accrual:
 	status: %s
-	accrual: %d
+	accrual: %f
 	user: %s`, o.Status, o.Accrual, o.User)
 	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
 		_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)

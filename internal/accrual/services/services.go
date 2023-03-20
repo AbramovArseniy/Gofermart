@@ -45,7 +45,7 @@ func OrderAdd(list io.ReadCloser, keeper storage.Keeper) (int, error) {
 	var (
 		order     types.CompleteOrder
 		orderInfo types.OrdersInfo
-		accrual   int
+		accrual   float64
 	)
 
 	body, err := io.ReadAll(list)

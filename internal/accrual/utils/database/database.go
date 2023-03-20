@@ -58,7 +58,7 @@ func (d *DataBase) Migrate() {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://internal/accrual/utils/database/migrations",
+		"file://../../internal/accrual/utils/database/migrations",
 		d.dba,
 		driver)
 	if err != nil {
@@ -220,10 +220,9 @@ func (d *DataBase) regOrderInfo(number string) error {
 	return tx.Commit()
 }
 
-func (d *DataBase) FindGoods(order types.CompleteOrder) (int, error) {
+func (d *DataBase) FindGoods(order types.CompleteOrder) (float64, error) {
 	var (
-		accrual  int
-		faccrual float32
+		accrual float64
 	)
 
 	if d.db == nil {
@@ -264,7 +263,7 @@ func (d *DataBase) FindGoods(order types.CompleteOrder) (int, error) {
 			if strings.Contains(v.Description, item.Match) {
 				switch item.RewardType {
 				case "%":
-					faccrual += v.Price / 100 * float32(item.Reward)
+					accrual += v.Price / 100 * item.Reward
 				case "pt":
 					accrual += item.Reward
 				}
@@ -274,8 +273,6 @@ func (d *DataBase) FindGoods(order types.CompleteOrder) (int, error) {
 			return accrual, err
 		}
 	}
-
-	accrual += int(faccrual)
 
 	return accrual, tx.Commit()
 }

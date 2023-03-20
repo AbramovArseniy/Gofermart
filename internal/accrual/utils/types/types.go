@@ -3,9 +3,9 @@ package types
 type status string
 
 type OrdersInfo struct {
-	Order   string `json:"order"`
-	Status  status `json:"status"`
-	Accrual int    `json:"accrual,omitempty"`
+	Order   string  `json:"order"`
+	Status  status  `json:"status"`
+	Accrual float64 `json:"accrual,omitempty"`
 }
 
 type (
@@ -16,14 +16,14 @@ type (
 
 	ordersGoods struct {
 		Description string  `json:"description"`
-		Price       float32 `json:"price"`
+		Price       float64 `json:"price"`
 	}
 )
 
 type Goods struct {
-	Match      string `json:"match"`
-	Reward     int    `json:"reward"`
-	RewardType string `json:"reward_type"`
+	Match      string  `json:"match"`
+	Reward     float64 `json:"reward"`
+	RewardType string  `json:"reward_type"`
 }
 
 const (

@@ -12,5 +12,5 @@ type Keeper interface {
 	RegisterGoods(types.Goods) error
 	UpdateOrderStatus(types.OrdersInfo) error
 	FindOrder(number string) bool
-	FindGoods(order types.CompleteOrder) (int, error)
+	FindGoods(order types.CompleteOrder) (float64, error)
 }
