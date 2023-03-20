@@ -8,17 +8,16 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"path"
 	"time"
-
-	"math"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -71,7 +70,6 @@ func NewDataBase(ctx context.Context, dba string) (*DataBase, error) {
 }
 
 func (d *DataBase) Migrate() {
-
 	_, err := d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS users (
 		id SERIAL UNIQUE,
 		login VARCHAR UNIQUE NOT NULL,
@@ -147,14 +145,26 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 	status: %s
 	accrual: %f
 	user: %s`, o.Status, o.Accrual, o.User)
-	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
+	switch o.Status {
+	case "PROCESSING":
 		_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)
-	} else if o.Status == "INVALID" {
+	case "REGISTERED":
+		_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)
+	case "INVALID":
 		_, err = updateOrderStatusToInvalidStmt.Exec(orderNum)
-	} else if o.Status == "PROCESSED" {
+	case "PROCESSED":
 		_, err = updateOrderStatusToProcessedStmt.Exec(o.Accrual, orderNum)
-	} else {
-		_, err = updateOrderStatusToUnknownStmt.Exec(orderNum)
+	default:
+		_, err = updateOrderStatusToProcessedStmt.Exec(o.Accrual, orderNum)
+		// }
+		// if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
+		// 	_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)
+		// } else if o.Status == "INVALID" {
+		// 	_, err = updateOrderStatusToInvalidStmt.Exec(orderNum)
+		// } else if o.Status == "PROCESSED" {
+		// 	_, err = updateOrderStatusToProcessedStmt.Exec(o.Accrual, orderNum)
+		// } else {
+		// 	_, err = updateOrderStatusToUnknownStmt.Exec(orderNum)
 	}
 	if err != nil {
 		log.Println("error updating orders status to db:", err)
@@ -298,13 +308,13 @@ func (d *DataBase) CheckOrders(accrualSysClient types.Client) {
 			url.Path = path.Join(accrualSysClient.URL.Path, orderNum)
 			resp, err := accrualSysClient.Client.Get(url.String())
 			if err != nil {
-				log.Println("can't get response from accrual sytem:", err)
+				log.Println("can't get response from accrual system:", err)
 				return
 			}
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				log.Println("can't read body of reponsefrom accrual sytem:", err)
+				log.Println("can't read body of reponsefrom accrual system:", err)
 				return
 			}
 			d.UpgradeOrderStatus(body, orderNum)
@@ -313,7 +323,6 @@ func (d *DataBase) CheckOrders(accrualSysClient types.Client) {
 			log.Println("CheckOrders: error while reading rows")
 		}
 	}
-
 }
 
 func Round(x, unit float64) float64 {
@@ -496,7 +505,7 @@ func (d *DataBase) GetUserData(login string) (types.User, error) {
 
 	row := selectUserStmt.QueryRow(login)
 	err = row.Scan(&user.ID, &user.Login, &user.HashPassword)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return types.User{}, nil
 	}
 

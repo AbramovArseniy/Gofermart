@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -26,5 +27,11 @@ func main() {
 	router := chi.NewRouter()
 	router.Mount("/", handler.Route())
 
-	log.Fatal(http.ListenAndServe(config.Address, router))
+	server := http.Server{
+		Addr:              config.Address,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	log.Fatal(server.ListenAndServe())
 }

@@ -25,7 +25,7 @@ type AuthJWT struct {
 	context     context.Context
 }
 
-func NewAuth(store types.UserDB, secret string, context context.Context) *AuthJWT {
+func NewAuth(context context.Context, store types.UserDB, secret string) *AuthJWT {
 	jwtAuth := jwtauth.New("HS256", []byte(secret), nil)
 
 	return &AuthJWT{
@@ -77,7 +77,6 @@ func (a *AuthJWT) LoginUser(userdata types.UserData) (types.User, error) {
 }
 
 func (a *AuthJWT) GenerateToken(user types.User) (string, error) {
-
 	reqs, err := a.getTokenReqs(user)
 	if err != nil {
 		return "", err

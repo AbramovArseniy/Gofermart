@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/handlers"
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/config"
@@ -22,13 +23,14 @@ func main() {
 
 	database.Migrate()
 
-	auth := handlers.NewAuth(database, cfg.JWTSecret, context)
+	auth := handlers.NewAuth(context, database, cfg.JWTSecret)
 	g := handlers.NewGophermart(cfg.Accrual, cfg.JWTSecret, database, auth)
 	defer g.Storage.Close()
 	r := g.Router()
 	s := http.Server{
-		Addr:    cfg.Address,
-		Handler: r,
+		Addr:              cfg.Address,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Println("Server started at", cfg.Address)
 	go g.Storage.CheckOrders(g.AccrualSysClient)

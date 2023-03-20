@@ -18,8 +18,8 @@ func OrderCheck(number string) ([]byte, int) {
 	if !luhnchecker.CalculateLuhn(number) {
 		orderInfo.Order = number
 		orderInfo.Status = types.StatusInvalid
-		i, error := json.Marshal(orderInfo)
-		if error != nil {
+		i, err := json.Marshal(orderInfo)
+		if err != nil {
 			return nil, http.StatusInternalServerError
 		}
 		return i, http.StatusOK
@@ -41,7 +41,7 @@ func OrdersNumber(number string, keeper storage.Keeper) ([]byte, error) {
 	return i, nil
 }
 
-func OrderAdd(list io.ReadCloser, keeper storage.Keeper) (int, error) {
+func OrderAdd(list io.Reader, keeper storage.Keeper) (int, error) {
 	var (
 		order     types.CompleteOrder
 		orderInfo types.OrdersInfo
@@ -94,10 +94,8 @@ func OrderAdd(list io.ReadCloser, keeper storage.Keeper) (int, error) {
 	return http.StatusAccepted, nil
 }
 
-func GoodsAdd(newGoods io.ReadCloser, keeper storage.Keeper) (int, error) {
-	var (
-		goods types.Goods
-	)
+func GoodsAdd(newGoods io.Reader, keeper storage.Keeper) (int, error) {
+	var goods types.Goods
 
 	body, err := io.ReadAll(newGoods)
 	if err != nil {

@@ -51,7 +51,6 @@ func New(ctx context.Context, dba string) (*DataBase, error) {
 }
 
 func (d *DataBase) Migrate() {
-
 	driver, err := postgres.WithInstance(d.db, &postgres.Config{})
 	if err != nil {
 		log.Println(err)
@@ -68,7 +67,6 @@ func (d *DataBase) Migrate() {
 	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		log.Println(err)
 	}
-
 }
 
 func (d *DataBase) GetOrderInfo(number string) (types.OrdersInfo, error) {
@@ -102,8 +100,7 @@ func (d *DataBase) FindOrder(number string) bool {
 
 	row := d.db.QueryRowContext(d.ctx, findOrderQuery, number)
 
-	err := row.Scan(&exist)
-	if err != nil {
+	if err := row.Scan(&exist); err != nil {
 		return false
 	}
 
@@ -119,8 +116,7 @@ func (d *DataBase) CheckOrderStatus(number string) bool {
 
 	row := d.db.QueryRowContext(d.ctx, checkOrderStatusQuery, number)
 
-	err := row.Scan(&status)
-	if err != nil {
+	if err := row.Scan(&status); err != nil {
 		return false
 	}
 
@@ -163,7 +159,6 @@ func (d *DataBase) RegisterOrder(order types.CompleteOrder) error {
 }
 
 func (d *DataBase) UpdateOrderStatus(info types.OrdersInfo) error {
-
 	if d.db == nil {
 		err := fmt.Errorf("you haven`t opened the database connection")
 		return err
@@ -213,7 +208,7 @@ func (d *DataBase) regOrderInfo(number string) error {
 
 	_, err = stmt.ExecContext(d.ctx, number, types.StatusRegistred)
 	if err != nil {
-		err = fmt.Errorf("exec: %s", err)
+		err = fmt.Errorf("exec: %w", err)
 		return err
 	}
 
@@ -221,9 +216,7 @@ func (d *DataBase) regOrderInfo(number string) error {
 }
 
 func (d *DataBase) FindGoods(order types.CompleteOrder) (float64, error) {
-	var (
-		accrual float64
-	)
+	var accrual float64
 
 	if d.db == nil {
 		err := fmt.Errorf("you haven`t opened the database connection")
@@ -297,7 +290,7 @@ func (d *DataBase) RegisterGoods(goods types.Goods) error {
 
 	_, err = stmt.ExecContext(d.ctx, goods.Match, goods.Reward, goods.RewardType)
 	if err != nil {
-		err = fmt.Errorf("exec: %s", err)
+		err = fmt.Errorf("exec: %w", err)
 		return err
 	}
 	defer stmt.Close()
@@ -314,8 +307,7 @@ func (d *DataBase) CheckGoods(match string) bool {
 
 	row := d.db.QueryRowContext(d.ctx, findGoodsQuery, match)
 
-	err := row.Scan(&exist)
-	if err != nil {
+	if err := row.Scan(&exist); err != nil {
 		return false
 	}
 

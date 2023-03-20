@@ -1,7 +1,6 @@
 package types
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -70,17 +69,6 @@ type Order struct {
 	Status     string    `json:"status"`
 	Accrual    float64   `json:"accrual,omitempty"`
 	UploadedAt time.Time `json:"uploaded_at"`
-}
-
-func (order Order) MarshalJSON() ([]byte, error) {
-	var tmp struct {
-		Number     string    `json:"number"`
-		Status     string    `json:"status"`
-		Accrual    float64   `json:"accrual,omitempty"`
-		UploadedAt time.Time `json:"uploaded_at"`
-	}
-	tmp.Number, tmp.Status, tmp.Accrual, tmp.UploadedAt = order.Number, order.Status, order.Accrual, order.UploadedAt
-	return json.Marshal(tmp)
 }
 
 var (

@@ -18,8 +18,6 @@ import (
 const (
 	IntSymbols     = "0123456789"
 	ShortURLMaxLen = 7
-	userIDCookie   = "useridcookie"
-	userContextKey = "user"
 )
 
 type Gophermart struct {
@@ -52,7 +50,6 @@ func NewGophermart(accrualSysAddress, secret string, database *database.DataBase
 }
 
 func (g *Gophermart) DoRequest(number string) ([]byte, error) {
-
 	resp, err := http.Get(g.AccrualSysClient.URL.String())
 	if err != nil {
 		return nil, fmt.Errorf("DoRequest: cannot get info from accrual system: %w", err)
