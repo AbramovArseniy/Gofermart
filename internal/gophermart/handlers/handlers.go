@@ -32,13 +32,12 @@ type Gophermart struct {
 }
 
 func NewGophermart(accrualSysAddress, secret string, database *database.DataBase, auth *AuthJWT) *Gophermart {
+	accrualAddr, _ := url.Parse(accrualSysAddress)
+	accrualAddr.Path = "api/orders"
 	return &Gophermart{
 		Storage: database,
 		AccrualSysClient: types.Client{
-			URL: url.URL{
-				Host: accrualSysAddress,
-				Path: "api/orders",
-			},
+			URL:    *accrualAddr,
 			Client: http.Client{},
 		},
 		AuthenticatedUser: types.User{
