@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/luhnchecker"
 	"github.com/AbramovArseniy/Gofermart/internal/gophermart/utils/types"
@@ -75,13 +77,14 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 	}
 
 	orderNum := string(body)
+	log.Printf(`PostOrderService: orderNum: %s`, orderNum)
 	numIsRight := luhnchecker.OrderNumIsRight(orderNum)
 	user, exists, err := storage.GetOrderUserByNum(orderNum)
 	if err != nil {
 		err := fmt.Errorf("cannot get user id by order number %s", err)
 		return http.StatusInternalServerError, err
 	}
-
+	log.Printf(`PostOrderService: user: %s`, user)
 	if !numIsRight {
 		err := fmt.Errorf("luhnchecker %t", numIsRight)
 		return http.StatusUnprocessableEntity, err
@@ -91,6 +94,7 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 		Number: orderNum,
 		Status: "NEW",
 	}
+	log.Printf(`PostOrderService: order: %v`, order)
 	if !exists {
 		err = storage.SaveOrder(&order)
 		if err != nil {
@@ -107,7 +111,7 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Println("can't read body of reponsefrom accrual sytem:", err)
+			log.Println("can't read body of reponse from accrual sytem:", err)
 			return http.StatusInternalServerError, err
 		}
 		if resp.StatusCode > 299 {
@@ -127,7 +131,8 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 	return http.StatusOK, fmt.Errorf("order already uploaded by you")
 }
 
-func GetOrderService(r *http.Request, storage types.Storage, auth types.Authorization) (int, []byte, error) {
+// func GetOrderService(r *http.Request, storage types.Storage, auth types.Authorization) (int, []byte, error) {
+func GetOrderService(r *http.Request, storage types.Storage, auth types.Authorization) (int, []types.OrderResp, error) {
 	userid := auth.GetUserLogin(r)
 	log.Printf("GetOrderService: USER LOGIN: %s", userid)
 	orders, exist, err := storage.GetOrdersByUser(userid)
@@ -139,12 +144,25 @@ func GetOrderService(r *http.Request, storage types.Storage, auth types.Authoriz
 		err = fmt.Errorf("order exists? %t", exist)
 		return http.StatusNoContent, nil, err
 	}
-	var body []byte
-	if body, err = json.Marshal(&orders); err != nil {
-		return http.StatusInternalServerError, nil, err
+	//albert
+	res := make([]types.OrderResp, len(orders))
+
+	for i, order := range orders {
+		res[i] = types.OrderResp{
+			Number:     order.Number,
+			Status:     order.Status,
+			Accrual:    math.Round(order.Accrual*100) / 100,
+			UploadedAt: order.UploadedAt.Format(time.RFC3339),
+		}
 	}
-	log.Println("GetOrderService: EVERYTHING still is OK #4")
-	return http.StatusOK, body, nil
+	log.Printf("GetOrderService: RESULT ORDERS: %v", res)
+	// var body []byte
+	// if body, err = json.Marshal(&orders); err != nil {
+	// 	return http.StatusInternalServerError, nil, err
+	// }
+	// log.Println("GetOrderService: EVERYTHING still is OK #4")
+	// return http.StatusOK, body, nil
+	return http.StatusOK, res, nil
 }
 
 func PostWithdrawalService(r *http.Request, storage types.Storage, auth types.Authorization) (int, error) {

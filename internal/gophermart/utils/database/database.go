@@ -33,9 +33,10 @@ var (
 	ErrAlarm        = errors.New("error tx.BeginTx alarm")
 	ErrAlarm2       = errors.New("error tx.PrepareContext alarm")
 
-	selectOrdersByUserStmt string = `SELECT * FROM orders WHERE login=$1`
+	// selectOrdersByUserStmt string = `SELECT * FROM orders WHERE login=$1` // albert
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
 	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
+	selectOrdersByUserStmt            string = `SELECT (order_num, order_status, accrual, uploaded_at) FROM orders WHERE login=$1` // albert
 	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
 	updateOrderStatusToProcessedStmt  string = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
@@ -104,13 +105,20 @@ func (d *DataBase) Migrate() {
 	if err != nil {
 		log.Printf("error during create users %s", err)
 	}
-
+	// albert
+	// _, err = d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS orders (
+	// 	order_num VARCHAR(255) PRIMARY KEY,
+	// 	login VARCHAR(16) NOT NULL,
+	// 	order_status VARCHAR(16) NOT NULL,
+	// 	accrual FLOAT,
+	// 	date_time TIMESTAMP NOT NULL
+	// );`)
 	_, err = d.db.ExecContext(d.ctx, `CREATE TABLE IF NOT EXISTS orders (
 		order_num VARCHAR(255) PRIMARY KEY,
 		login VARCHAR(16) NOT NULL,
 		order_status VARCHAR(16) NOT NULL,
 		accrual FLOAT,
-		date_time TIMESTAMP NOT NULL
+		date_time TIMESTAMP NOT NULL DEFAULT NOW()
 	);`)
 	if err != nil {
 		log.Printf("error during create orders %s", err)
@@ -169,7 +177,7 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 	}
 	log.Printf(`got order from accrual:
 	status: %s
-	accrual: %d
+	accrual: %f
 	user: %s`, o.Status, o.Accrual, o.User)
 	if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
 		_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)
@@ -482,7 +490,10 @@ func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, e
 	var orders []types.Order
 	for rows.Next() {
 		var order types.Order
-		err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt)
+		var accrual sql.NullFloat64                                                // ALBERT
+		err = rows.Scan(&order.Number, &order.Status, &accrual, &order.UploadedAt) // ALBERT
+		// err = rows.Scan(&order.Number, &order.User, &order.Status, &order.Accrual, &order.UploadedAt) // ALBERT
+		order.Accrual = accrual.Float64
 		if err != nil {
 			return nil, false, fmt.Errorf("GetOrdersByUser: error while scanning rows from database: %w", err)
 		}

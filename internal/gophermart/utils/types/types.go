@@ -1,7 +1,7 @@
 package types
 
 import (
-	"encoding/json"
+	// "encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -63,24 +63,44 @@ type Balance struct {
 	Balance   float64 `json:"current"`
 	Withdrawn float64 `json:"withdrawn"`
 }
+
+// albert
+type OrderResp struct {
+	Number     string  `json:"number"`
+	Status     string  `json:"status"`
+	Accrual    float64 `json:"accrual,omitempty"`
+	UploadedAt string  `json:"uploaded_at"`
+}
+
+// albert
 type Order struct {
 	User       string
 	Number     string    `json:"number"`
 	Status     string    `json:"status"`
-	Accrual    int       `json:"accrual,omitempty"`
+	Accrual    float64   `json:"accrual,omitempty"`
 	UploadedAt time.Time `json:"uploaded_at"`
 }
 
-func (order Order) MarshalJSON() ([]byte, error) {
-	var tmp struct {
-		Number     string    `json:"number"`
-		Status     string    `json:"status"`
-		Accrual    int       `json:"accrual,omitempty"`
-		UploadedAt time.Time `json:"uploaded_at"`
-	}
-	tmp.Number, tmp.Status, tmp.Accrual, tmp.UploadedAt = order.Number, order.Status, order.Accrual, order.UploadedAt
-	return json.Marshal(tmp)
-}
+//albert
+// type Order struct {
+// 	User       string
+// 	Number     string    `json:"number"`
+// 	Status     string    `json:"status"`
+// 	Accrual    int       `json:"accrual,omitempty"`
+// 	UploadedAt time.Time `json:"uploaded_at"`
+// }
+
+//albert
+// func (order Order) MarshalJSON() ([]byte, error) {
+// 	var tmp struct {
+// 		Number     string    `json:"number"`
+// 		Status     string    `json:"status"`
+// 		Accrual    int       `json:"accrual,omitempty"`
+// 		UploadedAt time.Time `json:"uploaded_at"`
+// 	}
+// 	tmp.Number, tmp.Status, tmp.Accrual, tmp.UploadedAt = order.Number, order.Status, order.Accrual, order.UploadedAt
+// 	return json.Marshal(tmp)
+// }
 
 var (
 	ErrUserExists = errors.New("such user already exist in DB")
