@@ -52,6 +52,7 @@ var (
 	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
 	// selectUserIDByOrderNumStmt string = `SELECT login FROM orders WHERE order_num = $1;`
 	selectUserIDByOrderNumStmt string        = `SELECT login FROM orders WHERE EXISTS(SELECT login FROM orders WHERE order_num = $1);`
+	selectUserIDStmt           string        = `SELECT login from orders WHERE order_num = $1;`
 	checkUserDatastmt          string        = `SELECT EXISTS(SELECT login, password_hash FROM users WHERE login = $1 AND password_hash = $2)`
 	checkOrderInterval         time.Duration = 5 * time.Second
 )
@@ -466,6 +467,27 @@ func (d *DataBase) GetOrderUserByNum(orderNum string) (user string, exists bool,
 	}
 
 	return user, exists, nil
+}
+
+func (d *DataBase) GetOrderUser(orderNum string) (userID string, err error) {
+	tx, err := d.db.BeginTx(d.ctx, nil)
+	if err != nil {
+		return "", ErrInvalidData
+	}
+	defer tx.Rollback()
+
+	selectUserIDStmt, err := tx.PrepareContext(d.ctx, selectUserIDStmt)
+	if err != nil {
+		return "", ErrInvalidData
+	}
+	defer selectUserIDStmt.Close()
+
+	row := selectUserIDStmt.QueryRowContext(d.ctx, orderNum)
+	err = row.Scan(&userID)
+	if err != nil {
+		return "", ErrInvalidData
+	}
+	return userID, nil
 }
 
 func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, error) {
