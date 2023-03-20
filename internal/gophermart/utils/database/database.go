@@ -141,10 +141,6 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 		log.Println("failed to unmarshal json from response body from accrual system:", err)
 		return fmt.Errorf("failed to unmarshal json from response body from accrual system: %w", err)
 	}
-	log.Printf(`got order from accrual:
-	status: %s
-	accrual: %f
-	user: %s`, o.Status, o.Accrual, o.User)
 	switch o.Status {
 	case "PROCESSING":
 		_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)
@@ -156,15 +152,6 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 		_, err = updateOrderStatusToProcessedStmt.Exec(o.Accrual, orderNum)
 	default:
 		_, err = updateOrderStatusToProcessedStmt.Exec(o.Accrual, orderNum)
-		// }
-		// if o.Status == "PROCESSING" || o.Status == "REGISTERED" {
-		// 	_, err = updateOrderStatusToProcessingStmt.Exec(orderNum)
-		// } else if o.Status == "INVALID" {
-		// 	_, err = updateOrderStatusToInvalidStmt.Exec(orderNum)
-		// } else if o.Status == "PROCESSED" {
-		// 	_, err = updateOrderStatusToProcessedStmt.Exec(o.Accrual, orderNum)
-		// } else {
-		// 	_, err = updateOrderStatusToUnknownStmt.Exec(orderNum)
 	}
 	if err != nil {
 		log.Println("error updating orders status to db:", err)
