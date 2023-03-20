@@ -36,9 +36,8 @@ func NewGophermart(accrualSysAddress, secret string, database *database.DataBase
 		Storage: database,
 		AccrualSysClient: types.Client{
 			URL: url.URL{
-				Scheme: "http",
-				Host:   accrualSysAddress,
-				Path:   "api/orders",
+				Host: accrualSysAddress,
+				Path: "api/orders",
 			},
 			Client: http.Client{},
 		},
