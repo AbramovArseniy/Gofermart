@@ -183,8 +183,7 @@ func (d *DataBase) UpgradeOrderStatus(body []byte, orderNum string) error {
 		log.Println("error updating orders status to db:", err)
 		return fmt.Errorf("error inserting data to db: %w", err)
 	}
-
-	return nil
+	return tx.Commit()
 }
 
 func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
