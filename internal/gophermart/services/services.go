@@ -75,20 +75,36 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 		err := fmt.Errorf("cannot read request body %s", err)
 		return http.StatusInternalServerError, err
 	}
-
 	orderNum := string(body)
 	log.Printf(`PostOrderService: orderNum: %s`, orderNum)
 	numIsRight := luhnchecker.OrderNumIsRight(orderNum)
-	user, exists, err := storage.GetOrderUserByNum(orderNum)
-	if err != nil {
-		err := fmt.Errorf("cannot get user id by order number %s", err)
-		return http.StatusInternalServerError, err
-	}
-	log.Printf(`PostOrderService: user: %s`, user)
 	if !numIsRight {
 		err := fmt.Errorf("luhnchecker %t", numIsRight)
 		return http.StatusUnprocessableEntity, err
 	}
+	userid := auth.GetUserLogin(r)
+	log.Printf("GetOrderService: USER LOGIN: %s", userid)
+
+	oldOrder, err := storage.FindOldOrder(orderNum)
+	if err != nil {
+		return 0, err
+	}
+	if oldOrder.Number != "0" {
+		return 0, err
+	}
+
+	newOrder, err := storage.AddNewOrder(orderNum, userid)
+	if err != nil {
+		return 0, err
+	}
+
+	// user, exists, err := storage.GetOrderUserByNum(orderNum)
+	// if err != nil {
+	// 	err := fmt.Errorf("cannot get user id by order number %s", err)
+	// 	return http.StatusInternalServerError, err
+	// }
+	// log.Printf(`PostOrderService: user: %s`, user)
+
 	order := types.Order{
 		User:   auth.GetUserLogin(r),
 		Number: orderNum,

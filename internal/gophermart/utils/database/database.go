@@ -24,7 +24,8 @@ import (
 )
 
 var (
-	ErrUserExists = errors.New("such user already exist in DB")
+	ErrUserExists  = errors.New("such user already exist in DB")
+	ErrOrderExists = errors.New("such order already exist in DB")
 	// ErrNewRegistration = errors.New("error while register user - main problem")
 	ErrScanData     = errors.New("error while scan user ID")
 	ErrInvalidData  = errors.New("error user data is invalid")
@@ -35,8 +36,9 @@ var (
 
 	// selectOrdersByUserStmt string = `SELECT * FROM orders WHERE login=$1` // albert
 	// selectOrderByNumStmt              string        = `SELECT ( status, accrual, user_id) FROM orders WHERE order_num=$1`
-	//	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, order_status, accrual, date_time) VALUES ($1, $2, $3, $4, $5)`
+	insertOrderStmt                   string = `INSERT INTO orders (order_num, user_id, date_time, order_status) VALUES ($1, $2, $3, $4)`
 	selectOrdersByUserStmt            string = `SELECT order_num, order_status, accrual, date_time FROM orders WHERE login=$1 ORDER BY date_time DESC` // albert
+	selectOrdersByOrderNumStmt        string = `SELECT order_num, login, date_time, order_status, accrual FROM orders WHERE order_num=$1`              // albert
 	updateOrderStatusToProcessingStmt string = `UPDATE orders SET order_status='PROCESSING' WHERE order_num=$1`
 	updateOrderStatusToProcessedStmt  string = `UPDATE orders SET order_status='PROCESSED', accrual=$1 WHERE order_num=$2`
 	updateOrderStatusToInvalidStmt    string = `UPDATE orders SET order_status='INVALID' WHERE order_num=$1`
@@ -634,4 +636,65 @@ func (d *DataBase) GetUserData(login string) (types.User, error) {
 		return types.User{}, nil
 	}
 	return user, err
+}
+
+func (d *DataBase) FindOldOrder(orderid string) (types.Order, error) {
+	var order types.Order
+	var accrual sql.NullFloat64
+
+	tx, err := d.db.BeginTx(d.ctx, nil)
+	if err != nil {
+		return order, err
+	}
+	defer tx.Rollback()
+
+	selectOrdersByOrderNumStmt, err := tx.PrepareContext(d.ctx, selectOrdersByOrderNumStmt)
+	if err != nil {
+		return order, err
+	}
+	defer selectOrdersByOrderNumStmt.Close()
+
+	row := selectOrdersByOrderNumStmt.QueryRow(orderid)
+	err = row.Scan(&order.Number, &order.User, &order.UploadedAt, &order.Status, &accrual)
+	if err == pgx.ErrNoRows {
+		return types.Order{}, nil
+	}
+	accrualFloat := accrual.Float64
+	order.Accrual = accrualFloat
+	return order, err
+}
+
+func (d *DataBase) AddNewOrder(orderid string, userid string) (types.Order, error) {
+	order := types.Order{
+		Number:     orderid,
+		User:       userid,
+		UploadedAt: time.Now(),
+		Status:     "NEW",
+	}
+
+	tx, err := d.db.BeginTx(d.ctx, nil)
+	if err != nil {
+		return order, err
+	}
+	defer tx.Rollback()
+
+	insertOrderStmt, err := tx.PrepareContext(d.ctx, insertOrderStmt)
+	if err != nil {
+		return order, err
+	}
+	defer insertOrderStmt.Close()
+
+	_, err = insertOrderStmt.Exec(order.Number, order.User, order.UploadedAt, order.Status)
+	if err != nil {
+		return types.Order{}, fmt.Errorf("error while insert new order into database: %w", err)
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == pgerrcode.UniqueViolation {
+			return types.Order{}, ErrOrderExists
+		}
+	}
+
+	return order, err
 }

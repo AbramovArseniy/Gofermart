@@ -29,6 +29,8 @@ type Storage interface {
 	CheckUserData(login, hash string) bool
 	RegisterNewUser(login string, password string) (User, error)
 	GetUserData(login string) (User, error)
+	AddNewOrder(orderNum string, userid string) (Order, error) // new
+	FindOldOrder(orderNum string) (Order, error)               // new
 	Close()
 }
 
