@@ -50,6 +50,7 @@ var (
 	selectWithdrawalsByUserStmt       string = `SELECT order_num, accrual, created_at FROM withdrawals WHERE login=$1`
 	// insertUserStmt                    string        = `INSERT INTO users (login, password_hash) VALUES ($1, $2) returning id`
 	// selectUserStmt                    string        = `SELECT id, login, password_hash FROM users WHERE login = $1`
+	// selectUserIDByOrderNumStmt string = `SELECT login FROM orders WHERE order_num = $1;`
 	selectUserIDByOrderNumStmt string        = `SELECT login FROM orders WHERE EXISTS(SELECT login FROM orders WHERE order_num = $1);`
 	checkUserDatastmt          string        = `SELECT EXISTS(SELECT login, password_hash FROM users WHERE login = $1 AND password_hash = $2)`
 	checkOrderInterval         time.Duration = 5 * time.Second
@@ -198,7 +199,7 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	}
 
 	defer tx.Rollback()
-	log.Printf(`GetBalance: authUserLogin: %s`, authUserLogin)
+	// log.Printf(`GetBalance: authUserLogin: %s`, authUserLogin)
 	selectAccrualBalanceOrdersStmt, err := tx.PrepareContext(d.ctx, selectAccrualBalanceOrdersStmt)
 	if err != nil {
 		return order, withdrawn, err
@@ -210,9 +211,9 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select accrual sum from order database: %w", err)
 	}
-	log.Printf(`GetBalance: order from accrual before Round: %f`, order)
+	// log.Printf(`GetBalance: order from accrual before Round: %f`, order)
 	order = Round(order, 0.01)
-	log.Printf(`GetBalance: order from accrual after Round: %f`, order)
+	// log.Printf(`GetBalance: order from accrual after Round: %f`, order)
 	selectAccrualWithdrawnStmt, err := tx.PrepareContext(d.ctx, selectAccrualWithdrawnStmt)
 	if err != nil {
 		return order, withdrawn, err
@@ -224,10 +225,10 @@ func (d *DataBase) GetBalance(authUserLogin string) (float64, float64, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("cannot select accrual sum from withdrawals database: %w", err)
 	}
-	log.Printf(`GetBalance: withdrawn from accrual: %f`, withdrawn)
+	// log.Printf(`GetBalance: withdrawn from accrual: %f`, withdrawn)
 	balance := order - withdrawn
 	// balance = Round(balance, 0.01)
-	log.Printf(`GetBalance: balance: %f`, balance)
+	// log.Printf(`GetBalance: balance: %f`, balance)
 	return balance, withdrawn, nil
 }
 
@@ -481,12 +482,12 @@ func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, e
 	}
 
 	defer selectOrdersByUserStmt.Close()
-	log.Println("GetOrdersByUser: EVERYTHING still is OK")
+	// log.Println("GetOrdersByUser: EVERYTHING still is OK")
 	rows, err := selectOrdersByUserStmt.Query(authUserLogin)
 	if err != nil {
 		return nil, false, fmt.Errorf("GetOrdersByUser: error while selectOrdersByUserStmt.Query: %w", err)
 	}
-	log.Println("GetOrdersByUser: EVERYTHING still is OK #2")
+	// log.Println("GetOrdersByUser: EVERYTHING still is OK #2")
 	var orders []types.Order
 	for rows.Next() {
 		var order types.Order
@@ -505,7 +506,7 @@ func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, e
 	if len(orders) == 0 {
 		return nil, false, nil
 	}
-	log.Println("GetOrdersByUser: EVERYTHING still is OK #3")
+	// log.Println("GetOrdersByUser: EVERYTHING still is OK #3")
 	return orders, true, nil
 }
 

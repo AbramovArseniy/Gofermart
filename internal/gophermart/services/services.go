@@ -118,23 +118,23 @@ func PostOrderService(r *http.Request, storage types.Storage, auth types.Authori
 		return http.StatusAccepted, err
 
 	}
-	log.Printf("id in order %s, id in req %s", user, auth.GetUserLogin(r))
-	if user != auth.GetUserLogin(r) {
-		err = fmt.Errorf("order already uploaded by another user")
-
-		return http.StatusConflict, err
+	userfromrequest := auth.GetUserLogin(r)
+	log.Printf("UserID in order %s, UserID in request %s", user, userfromrequest)
+	if user == userfromrequest {
+		return http.StatusOK, nil
+	} else {
+		return http.StatusConflict, fmt.Errorf("order already uploaded by another user")
 	}
-	return http.StatusOK, fmt.Errorf("order already uploaded by you")
 }
 
 func GetOrderService(r *http.Request, storage types.Storage, auth types.Authorization) (int, []byte, error) {
 	userid := auth.GetUserLogin(r)
-	log.Printf("GetOrderService: USER LOGIN: %s", userid)
+	// log.Printf("GetOrderService: USER LOGIN: %s", userid)
 	orders, exist, err := storage.GetOrdersByUser(userid)
 	if err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("GetOrdersHandler: error while getting orders by user: %w", err)
 	}
-	log.Printf("GetOrderService: ORDERS: %v", orders)
+	// log.Printf("GetOrderService: ORDERS: %v", orders)
 	if !exist {
 		err = fmt.Errorf("order exists? %t", exist)
 		return http.StatusNoContent, nil, err
@@ -143,7 +143,7 @@ func GetOrderService(r *http.Request, storage types.Storage, auth types.Authoriz
 	if body, err = json.Marshal(&orders); err != nil {
 		return http.StatusInternalServerError, nil, err
 	}
-	log.Println("GetOrderService: EVERYTHING still is OK #4")
+	// log.Println("GetOrderService: EVERYTHING still is OK #4")
 	return http.StatusOK, body, nil
 }
 

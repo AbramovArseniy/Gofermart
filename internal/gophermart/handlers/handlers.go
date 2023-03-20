@@ -3,7 +3,6 @@ package handlers
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -97,7 +96,7 @@ func (g *Gophermart) GetOrdersHandler(c echo.Context) error {
 	c.Response().Header().Set("Content-Type", "application/json")
 
 	httpStatus, body, err := services.GetOrderService(c.Request(), g.Storage, g.Auth)
-	log.Println("GetOrdersHandler: EVERYTHING still is OK #5")
+	// log.Println("GetOrdersHandler: EVERYTHING still is OK #5")
 	c.Response().Writer.WriteHeader(httpStatus)
 	c.Response().Writer.Write(body)
 
