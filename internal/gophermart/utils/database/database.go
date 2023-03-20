@@ -486,7 +486,7 @@ func (d *DataBase) GetOrdersByUser(authUserLogin string) ([]types.Order, bool, e
 	if err != nil {
 		return nil, false, fmt.Errorf("GetOrdersByUser: error while selectOrdersByUserStmt.Query: %w", err)
 	}
-	defer rows.Close()
+	// defer rows.Close()
 	log.Println("GetOrdersByUser: EVERYTHING still is OK #2")
 	var orders []types.Order
 	for rows.Next() {
